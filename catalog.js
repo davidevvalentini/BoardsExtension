@@ -33,7 +33,7 @@ export const GRADIENTS = [
 
 const CC4 = { license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' };
 
-// Foto da Wikimedia Commons (dimensioni originali ≥ 4.500 px, controllate una per una).
+// Foto da Wikimedia Commons (dimensioni originali di almeno 3.840 px di larghezza, controllate una per una).
 // Il file viene richiesto a 3840 px (4K) oppure 1920 px, a seconda della qualità scelta.
 export const IMAGES = [
   { id: 'aurora-tasmania', file: 'Aurora_Australis_Over_the_Tasman_Sea_from_SouthWest_National_Park.jpg', title: 'Aurora australe, Tasmania', author: 'Jamen Percy', tone: '#0b1d22', ...CC4 },
@@ -49,7 +49,13 @@ export const IMAGES = [
   { id: 'uyuni', file: 'Isla_del_Pescado,_Salar_de_Uyuni,_Bolivia,_2016-02-04,_DD_42.JPG', title: 'Salar de Uyuni dall’Isla del Pescado', author: 'Diego Delso', tone: '#7d9bb8', ...CC4 },
   { id: 'carpazi', file: 'Карпатский_05.jpg', title: 'Carpazi dalla vetta dell’Hoverla', author: 'Dmytro Balkhovitin', tone: '#4a6275', license: 'CC BY-SA 3.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' },
   { id: 'desenka', file: 'Desenka_meadow_2016_G1.jpg', title: 'Prato all’alba, Desenka', author: 'George Chernilevsky', tone: '#5b6650', license: 'Pubblico dominio', licenseUrl: 'https://commons.wikimedia.org/wiki/Template:PD-self' },
-  { id: 'komargorod', file: 'Komargorod_pond_2013_G3.jpg', title: 'Stagno nella nebbia, Komargorod', author: 'George Chernilevsky', tone: '#6c7a76', license: 'Pubblico dominio', licenseUrl: 'https://commons.wikimedia.org/wiki/Template:PD-self' }
+  { id: 'komargorod', file: 'Komargorod_pond_2013_G3.jpg', title: 'Stagno nella nebbia, Komargorod', author: 'George Chernilevsky', tone: '#6c7a76', license: 'Pubblico dominio', licenseUrl: 'https://commons.wikimedia.org/wiki/Template:PD-self' },
+  // Più scure
+  { id: 'orione', file: 'Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg', title: 'Nebulosa di Orione', author: 'NASA, ESA, M. Robberto (STScI/ESA) e Hubble Space Telescope Orion Treasury Project Team', tone: '#0b0705', license: 'Pubblico dominio', licenseUrl: 'https://commons.wikimedia.org/wiki/Template:PD-USGov-NASA' },
+  { id: 'granchio', file: 'Crab_Nebula.jpg', title: 'Nebulosa del Granchio', author: 'NASA, ESA, J. Hester e A. Loll (Arizona State University)', tone: '#05070c', license: 'Pubblico dominio', licenseUrl: 'https://commons.wikimedia.org/wiki/Template:PD-USGov-NASA' },
+  { id: 'hongkong', file: 'Hong_Kong_Harbour_Night_2019-06-11.jpg', title: 'Hong Kong di notte, da Victoria Peak', author: 'Benh Lieu Song', tone: '#0a0f18', license: 'CC BY-SA 2.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/2.0/' },
+  { id: 'shinjuku', file: 'Night_in_Shinjuku_3.JPG', title: 'Shinjuku di notte, Tokyo', author: 'Martin Falbisoner', tone: '#0b0a0d', license: 'CC BY-SA 3.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' },
+  { id: 'paranal', file: 'Milky_Way_Emerges_as_Sun_Sets_over_Paranal.jpg', title: 'Via Lattea sopra il VLT, Paranal', author: 'ESO/J. Colosimo', tone: '#0a1220', license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/' }
 ];
 
 export function imageUrl(img, width = 3840) {

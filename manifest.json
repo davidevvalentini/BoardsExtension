@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Boards — nuova scheda segnalibri",
   "description": "Segnalibri in board drag-and-drop sulla nuova scheda, con temi, sfondi, promemoria. Tutto in locale.",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx1Tt25sQqC2n+DNGm8IcWtuuiXMf6NNoF76g1a2wns0eZ+PsacE5zzgfyhcsV+ySRsh5CnnaIbLbVInAsnDTxzi4CKkFrHpSl5CB6OxdkWNx3mrWzuNYIJOYnMfij0I3AQgSSp67BXOvx46hY2p1QY5DrMO1EJEz7oQkufpcwWP9/3057PEpQAOTADloVsWWXQ8L2RcF9i/5pQvpg+PPcXFqur9v9X5scvzYGBGiY1sE6HC6yPWUatKS5o0a8x3+NOAbYz9lf6ImE7I6wgVt2skhQJc6KF3qKqoq3riDOvsasa7MMvW52qEmzI2IVdGLIjqk4cuieThlcSydBCq2HQIDAQAB",
   "icons": {
     "16": "icons/icon16.png",

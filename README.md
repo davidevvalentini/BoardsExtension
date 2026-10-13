@@ -79,6 +79,6 @@ Le foto di sfondo sono caricate da `commons.wikimedia.org` solo se scegli uno sf
 Le foto sono su Wikimedia Commons; autore e licenza compaiono in basso a destra quando una foto è attiva
 e nel catalogo (`catalog.js`): Jamen Percy, Benh Lieu Song, Ian Norman, Eduardo M S Neves,
 NASA/ESA/Hubble Heritage Team, Krzysztof Golik, Frank Schulenburg, TA Gonsalves, Dietmar Rabich, King of Hearts,
-Diego Delso, Dmytro Balkhovitin, George Chernilevsky (licenze CC BY-SA 2.0/3.0/4.0 o pubblico dominio).
+Diego Delso, Dmytro Balkhovitin, George Chernilevsky, Martin Falbisoner, ESO/J. Colosimo, NASA/ESA/J. Hester e A. Loll, NASA/ESA/M. Robberto (licenze CC BY 4.0, CC BY-SA 2.0/3.0/4.0 o pubblico dominio).
 
 I caratteri Bricolage Grotesque e Figtree sono sotto licenza SIL Open Font License.

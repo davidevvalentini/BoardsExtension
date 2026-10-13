@@ -1040,12 +1040,21 @@ async function applyBackground() {
   const im = pickImage(bg);
   el.bg.style.background = im.tone;
   el.bgImg.classList.remove('ready');
-  const url = imageUrl(im, bg.quality === '4k' ? 3840 : 1920);
-  const probe = new Image();
-  probe.decoding = 'async';
-  probe.onload = () => { if (bgKey === key) { showLayer(`url("${url}")`); showCredit(im); } };
-  probe.onerror = () => { if (bgKey === key) { fallbackGradient(); toast('Non riesco a caricare la foto: uso una sfumatura.'); } };
-  probe.src = url;
+  // Prima 4K (se scelto); se Wikimedia non la fornisce si riprova in Full HD, e solo dopo si ripiega su una sfumatura.
+  const widths = bg.quality === '4k' ? [3840, 1920] : [1920];
+  const load = (i) => {
+    const url = imageUrl(im, widths[i]);
+    const probe = new Image();
+    probe.decoding = 'async';
+    probe.onload = () => { if (bgKey === key) { showLayer(`url("${url}")`); showCredit(im); } };
+    probe.onerror = () => {
+      if (bgKey !== key) return;
+      if (i + 1 < widths.length) load(i + 1);
+      else { fallbackGradient(); toast('Non riesco a caricare la foto: uso una sfumatura.'); }
+    };
+    probe.src = url;
+  };
+  load(0);
 }
 
 function fallbackGradient() {
