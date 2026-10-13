@@ -743,6 +743,15 @@ function scrollActiveTab() {
   el.tabs.querySelector('.tab[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
+async function movePageTo(pageId, targetId, before) {
+  const moving = state.pages.find((p) => p.id === pageId);
+  if (!moving || pageId === targetId) return;
+  state.pages = state.pages.filter((p) => p !== moving);
+  const at = state.pages.findIndex((p) => p.id === targetId);
+  if (at < 0) { state.pages.push(moving); } else state.pages.splice(before ? at : at + 1, 0, moving);
+  await commit();
+}
+
 function renderTabs() {
   el.tabs.replaceChildren(...wsPages().map((p) => {
     const b = h('button', {
@@ -750,15 +759,44 @@ function renderTabs() {
       onclick: () => setActivePage(p.id),
       ondblclick: () => renamePage(p)
     }, p.name);
+    // Trascinare una scheda ne cambia l'ordine
+    b.draggable = true;
+    b.addEventListener('dragstart', (e) => {
+      drag = { type: 'page', pageId: p.id, target: null };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', p.name);
+      setTimeout(() => b.classList.add('dragging'));
+    });
+    b.addEventListener('dragend', () => { drag = null; b.classList.remove('dragging'); clearMarks(); });
     // Rilascio su una pagina: sposta lì il link (o la board) trascinato
     b.addEventListener('dragover', (e) => {
-      if (!drag || p.id === state.activePage) return;
+      if (!drag) return;
+      if (drag.type === 'page') {
+        if (drag.pageId === p.id) return;
+        e.preventDefault();
+        document.querySelectorAll('.tab[data-drop]').forEach((n) => n.removeAttribute('data-drop'));
+        const r = b.getBoundingClientRect();
+        const before = e.clientX < r.left + r.width / 2;
+        b.dataset.drop = before ? 'before' : 'after';
+        drag.target = { pageId: p.id, before };
+        return;
+      }
+      if (p.id === state.activePage) return;
       e.preventDefault();
       b.classList.add('drop-target');
     });
-    b.addEventListener('dragleave', () => b.classList.remove('drop-target'));
+    b.addEventListener('dragleave', () => { b.classList.remove('drop-target'); b.removeAttribute('data-drop'); });
     b.addEventListener('drop', async (e) => {
-      if (!drag || p.id === state.activePage) return;
+      if (!drag) return;
+      if (drag.type === 'page') {
+        e.preventDefault();
+        const { pageId, target } = drag;
+        drag = null;
+        clearMarks();
+        if (target) await movePageTo(pageId, target.pageId, target.before);
+        return;
+      }
+      if (p.id === state.activePage) return;
       e.preventDefault();
       const d = drag;
       drag = null;

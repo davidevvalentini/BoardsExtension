@@ -231,3 +231,8 @@ dialog.ws-dlg { width: min(560px, calc(100vw - 32px)); padding: 0; overflow: hid
 .top-left .tabs-list::-webkit-scrollbar { display: none; }
 .top-left .tab { flex: none; }
 .top-left .ws-btn { flex: none; }
+
+/* Riordino delle schede (pagine) */
+.tab.dragging { opacity: 0.4; }
+.tab[data-drop="before"] { box-shadow: inset 3px 0 0 var(--accent); }
+.tab[data-drop="after"] { box-shadow: inset -3px 0 0 var(--accent); }
