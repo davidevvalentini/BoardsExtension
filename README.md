@@ -3,9 +3,25 @@
 Estensione Chrome (Manifest V3) che sostituisce la nuova scheda con i tuoi segnalibri organizzati in **board**.
 Pensata per uso personale: **tutto resta in locale** (`chrome.storage.local` e IndexedDB), nessun cloud, nessun account.
 
+![Schermata principale: workspace, pagine, board e sfondo fotografico](docs/home.jpg)
+
+<p align="center">
+  <img src="docs/settings-theme.jpg" alt="Impostazioni: temi e colore di accento" width="49%">
+  <img src="docs/settings-background.jpg" alt="Impostazioni: sfondi fotografici in 4K" width="49%">
+</p>
+
+## Come è organizzato
+
+```
+Workspace  (es. 🌤️ Personale, 💼 Lavoro)
+ └─ Pagina  (le schede in alto: Main, Chess, Trek…)
+     └─ Board  (le colonne)
+         └─ Link
+```
+
 ## Funzioni
 
-- **Workspace → pagine → board → link**, con trascinamento (link tra board e pagine, board tra pagine).
+- **Workspace, pagine, board e link**, con trascinamento (link tra board e pagine, board tra pagine).
 - **Link**: evidenzia con un colore, fissa in alto, duplica, sposta, promemoria con notifica ("Ricordamelo").
 - **Board**: comprimi, blocca, ordina A–Z, "Apri tutte le pagine".
 - **Impostazioni** (finestra centrale): temi e colore di accento personalizzabili, colori delle board, orologio e saluto, icone, larghezza colonne.
