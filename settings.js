@@ -169,6 +169,55 @@ export function mountSettings(root, ctx) {
       toggle('Privacy: sfoca anche i nomi delle board', s.privacyBoards, (v) => { s.privacyBoards = v; change('links'); }));
   }
 
+  function todoSection() {
+    const f = ctx.actions.todo;
+    const box = h('div', { class: 'set-block' }, h('p', { class: 'set-note' }, 'Carico…'));
+    f.load().then((cfg) => {
+      const HINT = { mcp: 'https://il-tuo-server/mcp', http: 'http://100.x.y.z:3080/api/todos' };
+      const url = h('input', { type: 'text', class: 'set-wide', value: cfg.url, inputmode: 'url', spellcheck: 'false', 'aria-label': 'Indirizzo' });
+      const token = h('input', { type: 'password', class: 'set-wide', value: cfg.token, placeholder: 'Token (se serve)', autocomplete: 'off', 'aria-label': 'Token' });
+      const app = h('input', { type: 'text', class: 'set-wide', value: cfg.appUrl, placeholder: 'Facoltativo: dove aprire la tua app', inputmode: 'url', spellcheck: 'false', 'aria-label': 'Indirizzo della tua app' });
+      let mode = cfg.mode;
+      let auth = cfg.auth;
+      const modeBox = h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Sorgente' });
+      const authBox = h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Autenticazione' });
+      const urlLabel = h('label', {}, '');
+      const paint = () => {
+        modeBox.replaceChildren(...[['mcp', 'Server MCP'], ['http', 'API JSON']].map(([v, label]) => h('button', {
+          type: 'button', role: 'radio', 'aria-checked': String(v === mode), onclick: () => { mode = v; paint(); }
+        }, label)));
+        authBox.replaceChildren(...[['bearer', 'Bearer token'], ['query', '?token= nell’indirizzo'], ['none', 'Nessuna']].map(([v, label]) => h('button', {
+          type: 'button', role: 'radio', 'aria-checked': String(v === auth), onclick: () => { auth = v; paint(); }
+        }, label)));
+        urlLabel.textContent = mode === 'mcp' ? 'Indirizzo del server MCP' : 'Indirizzo che restituisce i to-do (JSON)';
+        url.placeholder = HINT[mode];
+        token.disabled = auth === 'none';
+      };
+      paint();
+      const status = h('p', { class: 'set-note', role: 'status' }, '');
+      const run = async (clear) => {
+        status.className = 'set-note';
+        status.textContent = 'Provo…';
+        const r = await f.save(clear ? { mode, url: '', auth: 'none', token: '', appUrl: '' } : { mode, url: url.value, auth, token: token.value, appUrl: app.value });
+        status.textContent = r.message;
+        status.className = 'set-note' + (r.ok ? '' : ' warn');
+        if (clear) { url.value = ''; token.value = ''; app.value = ''; }
+      };
+      box.replaceChildren(
+        h('p', { class: 'set-note' }, 'Funzione facoltativa. La board «To-do» (menu ⋯ della pagina) mostra i to-do aperti del tuo Second Brain, in sola lettura. Con «Server MCP» basta l’indirizzo del server e il token; viene letta la collezione «todos». Indirizzo e token restano su questo computer e non finiscono nei backup.'),
+        h('div', { class: 'field' }, h('div', { class: 'lbl' }, 'Sorgente'), modeBox),
+        h('div', { class: 'field' }, urlLabel, url),
+        h('div', { class: 'field' }, h('div', { class: 'lbl' }, 'Autenticazione'), authBox),
+        h('div', { class: 'field' }, h('label', {}, 'Token'), token),
+        h('div', { class: 'field' }, h('label', {}, 'Indirizzo della tua app'), app),
+        h('div', { class: 'btn-row wrap' },
+          h('button', { type: 'button', class: 'btn-solid', onclick: () => run(false) }, 'Salva e prova'),
+          h('button', { type: 'button', class: 'btn-soft', onclick: () => run(true) }, 'Scollega')),
+        status);
+    });
+    return section('To-do dal Second Brain', box);
+  }
+
   function dataSection() {
     const st = ctx.getState();
     const last = st.lastBackup ? new Date(st.lastBackup).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : 'mai';
@@ -241,6 +290,7 @@ export function mountSettings(root, ctx) {
     ['colors', 'Colori delle board', 'palette', boardColorsSection],
     ['clock', 'Orologio e saluto', 'clock', clockSection],
     ['links', 'Link e icone', 'link', linksSection],
+    ['todo', 'To-do', 'check', todoSection],
     ['data', 'Dati e backup', 'tray', dataSection]
   ];
   let tab = 'theme';
@@ -264,7 +314,8 @@ export function mountSettings(root, ctx) {
     root.querySelector('.set-body').scrollTop = scroll;
   }
 
-  function open() {
+  function open(id) {
+    if (typeof id === 'string' && TABS.some((x) => x[0] === id)) tab = id;
     clearTimeout(hideTimer);
     render(false);
     root.hidden = false;

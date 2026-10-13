@@ -289,3 +289,19 @@ dialog.pal { width: min(640px, calc(100vw - 32px)); padding: 0; overflow: hidden
 .ws-row.dragging { opacity: 0.4; }
 .ws-row[data-drop="before"] { box-shadow: 0 -3px 0 var(--accent); }
 .ws-row[data-drop="after"] { box-shadow: 0 3px 0 var(--accent); }
+
+/* Board «To-do» (Second Brain) */
+.todo-list { display: flex; flex-direction: column; gap: 2px; max-height: 440px; overflow-y: auto; padding: 2px 2px 4px; }
+.todo-row { display: flex; align-items: flex-start; gap: 12px; padding: 9px 10px; border-radius: 14px; }
+.todo-row:hover { background: var(--panel-hover); }
+.todo-ring { flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--muted); }
+.todo-row[data-p="high"] .todo-ring { border-color: #FF93B4; }
+.todo-row[data-p="medium"] .todo-ring { border-color: #FFC857; }
+.todo-row[data-p="low"] .todo-ring { border-color: #7CC4FF; }
+.todo-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.todo-title { font-size: 15px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.todo-text small { color: var(--muted); font-size: 12.5px; }
+.todo-row.future { opacity: 0.6; }
+.todo-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 4px 6px; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--muted); font-size: 13.5px; line-height: 1.4; }
+.todo-note button { flex: none; border: 0; background: none; color: var(--accent); font: 600 13.5px var(--body); }
+body.privacy .todo-title { filter: blur(7px); }

@@ -23,7 +23,7 @@ function h(tag, attrs = {}, ...kids) {
 }
 
 const page = () => state.pages.find((p) => p.id === pageId);
-const open = () => page().boards.filter((b) => !b.locked); // le board bloccate non accettano link
+const open = () => page().boards.filter((b) => !b.locked && b.kind !== 'todo'); // le board bloccate non accettano link
 
 function renderChips() {
   const p = page();
@@ -107,7 +107,7 @@ async function doSave() {
     board = { id: uid(), name, color: pal[p.boards.length % pal.length], links: [] };
     p.boards.push(board);
   } else {
-    board = p.boards.find((b) => b.id === boardId && !b.locked) || p.boards.find((b) => !b.locked);
+    board = p.boards.find((b) => b.id === boardId && !b.locked && b.kind !== 'todo') || p.boards.find((b) => !b.locked && b.kind !== 'todo');
     if (!board) {
       const pal = boardPalette(fresh);
       board = { id: uid(), name: 'Principale', color: pal[0], links: [] };

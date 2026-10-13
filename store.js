@@ -185,6 +185,8 @@ export function sanitizeState(raw) {
           color: hex(b.color, settings.boardColors[bi % settings.boardColors.length]),
           ...(b.collapsed === true ? { collapsed: true } : {}),
           ...(b.locked === true ? { locked: true } : {}),
+          ...(b.kind === 'todo' ? { kind: 'todo' } : {}),
+          ...(b.kind === 'todo' && b.future === true ? { future: true } : {}),
           links: (Array.isArray(b.links) ? b.links : [])
             .filter((l) => l && typeof l === 'object')
             .map((l) => ({

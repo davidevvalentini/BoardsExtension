@@ -11,6 +11,7 @@ import { openPalette } from './palette.js';
 import { openDuplicates, openBroken } from './tools.js';
 import { loadHealth, saveHealth, brokenOf, describe as describeHealth, hasAccess, requestAccess, dropAccess } from './health.js';
 import * as folder from './backupdir.js';
+import * as todos from './todo.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -400,7 +401,7 @@ async function moveLinkTo(linkId, toBoardId, index) {
   const found = findLink(linkId);
   const to = allBoards().find((b) => b.id === toBoardId);
   if (!found || !to) return;
-  if (isLocked(found.board) || isLocked(to)) return;
+  if (isLocked(found.board) || isLocked(to) || to.kind === 'todo') return;
   found.board.links = found.board.links.filter((l) => l !== found.link);
   const at = index == null ? to.links.length : Math.min(index, to.links.length);
   to.links.splice(at, 0, found.link);
@@ -410,7 +411,7 @@ function moveMenu(anchor, board, link) {
   const items = [];
   const multi = state.workspaces.length > 1;
   for (const p of state.pages) {
-    const targets = p.boards.filter((b) => b.id !== board.id);
+    const targets = p.boards.filter((b) => b.id !== board.id && b.kind !== 'todo');
     if (!targets.length) continue;
     const w = state.workspaces.find((x) => x.id === p.ws);
     items.push({ sep: multi && w ? `${w.emoji} ${w.name} · ${p.name}` : p.name });
@@ -653,7 +654,7 @@ document.addEventListener('mousemove', (e) => { if (drag && e.buttons === 0) { d
 
 function wireSection(sec, list, board) {
   sec.addEventListener('dragover', (e) => {
-    if (!drag || drag.type !== 'link' || board.locked || board.collapsed) return;
+    if (!drag || drag.type !== 'link' || board.locked || board.collapsed || board.kind === 'todo') return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const spot = dropSpot(list, e.clientY);
@@ -963,7 +964,7 @@ function renderGrid() {
       h('div', {}, h('strong', {}, 'Questa pagina è vuota'), 'Crea una board per iniziare a raccogliere i tuoi link.'),
       h('button', { class: 'btn-primary', type: 'button', onclick: addBoard }, icon('plus', 18), 'Nuova board')));
   } else {
-    page.boards.forEach((b) => nodes.push(boardEl(page, b, b.links, false)));
+    page.boards.forEach((b) => nodes.push(b.kind === 'todo' ? todoBoardEl(page, b) : boardEl(page, b, b.links, false)));
     nodes.push(h('button', { class: 'new-board', type: 'button', onclick: addBoard }, icon('plus', 20), 'Nuova board'));
   }
   el.grid.replaceChildren(...nodes);
@@ -1114,6 +1115,114 @@ function tickClock(force) {
   el.date.textContent = d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+/* ——— To-do dal Second Brain ——— */
+// status: 'idle' | 'noconfig' | 'noperm' | 'loading' | 'ok' | 'error'
+const todo = { cfg: todos.defaultConfig(), items: [], t: 0, status: 'idle', error: '' };
+const hasTodoBoard = () => allBoards().some((b) => b.kind === 'todo');
+let todoTimer;
+
+async function refreshTodos({ force = false } = {}) {
+  if (!hasTodoBoard()) return;
+  if (!force && todo.status === 'loading') return;
+  todo.cfg = await todos.loadConfig();
+  if (!todo.cfg.url) { todo.status = 'noconfig'; renderGrid(); return; }
+  if (!(await todos.hasPermission(todo.cfg.url).catch(() => false))) { todo.status = 'noperm'; renderGrid(); return; }
+  todo.status = 'loading';
+  renderGrid();
+  try {
+    const { items } = await todos.fetchOpen(todo.cfg);
+    todo.items = items;
+    todo.t = Date.now();
+    todo.status = 'ok';
+    todo.error = '';
+    todos.saveCache(items);
+  } catch (e) {
+    todo.status = 'error';
+    todo.error = e?.message || 'Errore sconosciuto.';
+  }
+  if (!drag && !document.querySelector('dialog[open]')) renderGrid();
+}
+async function initTodos() {
+  const [cache, cfg] = await Promise.all([todos.loadCache(), todos.loadConfig()]);
+  todo.items = cache.items;
+  todo.t = cache.t;
+  todo.cfg = cfg;
+  if (!hasTodoBoard()) return;
+  renderGrid();
+  refreshTodos();
+}
+async function addTodoBoard() {
+  const page = curPage();
+  const used = page.boards.length;
+  page.boards.push({ id: uid(), name: 'To-do', color: palette()[used % palette().length], links: [], kind: 'todo' });
+  await commit();
+  const cfg = await todos.loadConfig();
+  if (!cfg.url) toast('Collega il tuo Second Brain per vedere i to-do.', { label: 'Imposta', run: () => settings.open('todo') });
+  refreshTodos({ force: true });
+}
+const PRI_LABEL = { high: 'Priorità alta', medium: 'Priorità media', low: 'Priorità bassa' };
+const dateLabel = (key) => new Date(key + 'T12:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+
+function todoBoardEl(page, board) {
+  const sec = h('section', { class: 'board todo-board', style: `--c:${board.color}`, 'aria-label': board.name, dataset: { id: board.id } });
+  const active = todos.sortTodos(todo.items.filter((t) => todos.isActive(t)));
+  const later = todos.sortTodos(todo.items.filter((t) => !todos.isActive(t)));
+  const shown = board.future ? [...active, ...later] : active;
+  const appUrl = todo.cfg.appUrl || (todo.cfg.url ? new URL(todo.cfg.url).origin : '');
+
+  const head = h('div', { class: 'board-head', draggable: 'true' },
+    h('span', { class: 'dot', 'aria-hidden': 'true' }),
+    h('h2', { title: board.name }, board.name),
+    todo.status === 'loading' ? h('span', { class: 'count' }, 'aggiorno…') : h('span', { class: 'count', title: `${active.length} to-do aperti` }, `${active.length} aperti`),
+    h('button', {
+      class: 'icon-btn bare', type: 'button', 'aria-label': `Opzioni ${board.name}`, title: 'Opzioni', 'aria-haspopup': 'menu',
+      onclick: (e) => openMenu(e.currentTarget, [
+        { icon: 'tray', label: 'Aggiorna ora', run: () => refreshTodos({ force: true }) },
+        { icon: 'pencil', label: 'Modifica nome e colore', run: () => editBoard(board) },
+        ...(appUrl ? [{ icon: 'external', label: 'Apri il Second Brain', run: () => chrome.tabs.create({ url: appUrl }) }] : []),
+        { icon: 'sliders', label: 'Impostazioni dei to-do…', run: () => settings.open('todo') },
+        { icon: 'move', label: 'Sposta in un’altra pagina…', run: () => boardToPageMenu(e.currentTarget, board) },
+        { rule: true },
+        { icon: 'trash', label: 'Elimina board', danger: true, run: () => deleteBoard(page, board) }
+      ])
+    }, icon('more', 18)));
+  head.addEventListener('dragstart', (e) => {
+    if (drag) return;
+    drag = { type: 'board', boardId: board.id, target: null };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', board.name);
+    e.dataTransfer.setDragImage(sec, 24, 24);
+    setTimeout(() => sec.classList.add('dragging'));
+  });
+  head.addEventListener('dragend', () => { drag = null; sec.classList.remove('dragging'); clearMarks(); });
+
+  const body = [];
+  const notice = (text, label, run) => body.push(h('div', { class: 'todo-note' }, h('span', {}, text), label ? h('button', { type: 'button', onclick: run }, label) : null));
+  if (todo.status === 'noconfig') notice('Collega il tuo Second Brain per vedere qui i to-do aperti.', 'Imposta', () => settings.open('todo'));
+  else if (todo.status === 'noperm') notice('Serve il permesso di contattare la tua app.', 'Imposta', () => settings.open('todo'));
+  else if (todo.status === 'error') notice(`${todo.error}${todo.t ? ' Mostro i dati salvati.' : ''}`, 'Riprova', () => refreshTodos({ force: true }));
+
+  const today = todos.todayKey();
+  const rows = shown.map((t) => {
+    const future = !todos.isActive(t);
+    return h('div', { class: 'todo-row' + (future ? ' future' : ''), dataset: { p: t.priority } },
+      h('span', { class: 'todo-ring', title: PRI_LABEL[t.priority], 'aria-label': PRI_LABEL[t.priority] }),
+      h('span', { class: 'todo-text' },
+        h('span', { class: 'todo-title', title: t.title }, t.title),
+        future ? h('small', {}, `dal ${dateLabel(t.activation || t.forMonth + '-01')}`) : t.activation === today ? h('small', {}, 'da oggi') : null));
+  });
+  if (!rows.length && (todo.status === 'ok' || (todo.status === 'error' && todo.t))) body.push(h('div', { class: 'empty-hint' }, 'Nessun to-do aperto. 🎉'));
+  if (rows.length) body.push(h('div', { class: 'todo-list' }, rows));
+  if (later.length) {
+    body.push(h('button', {
+      class: 'add-link', type: 'button',
+      onclick: async () => { if (board.future) delete board.future; else board.future = true; await commit(); }
+    }, board.future ? 'Nascondi i prossimi' : `Mostra anche i prossimi (${later.length})`));
+  }
+  sec.append(head, ...body);
+  return sec;
+}
+
 /* ——— Strumenti: doppioni e link rotti ——— */
 const toolCtx = {
   getState: () => state,
@@ -1190,7 +1299,28 @@ const settings = mountSettings($('settings'), {
     importChrome: importFromChrome, importHtml: () => el.bookmarks.click(), exportBackup, restoreFile: () => el.file.click(), restoreSnapshot, resetSettings,
     findDuplicates: () => { settings.close(); openDuplicates(toolCtx); },
     checkLinks: () => { settings.close(); openBroken(toolCtx); },
-    resetUsage, setAutoHealth, folder: folderActions
+    resetUsage, setAutoHealth, folder: folderActions,
+    todo: {
+      load: todos.loadConfig,
+      // Il permesso va chiesto per primo, mentre il clic dell'utente è ancora «fresco».
+      async save(cfg) {
+        const clean = todos.sanitizeConfig(cfg);
+        if (clean.url && !(await todos.requestPermission(clean.url).catch(() => false))) return { ok: false, message: 'Senza il permesso non posso contattare la tua app.' };
+        await todos.saveConfig(clean);
+        todo.cfg = clean;
+        if (!clean.url) { todo.status = 'noconfig'; todo.items = []; renderGrid(); return { ok: true, message: 'Collegamento rimosso.' }; }
+        try {
+          const { items, total } = await todos.fetchOpen(clean);
+          todo.items = items; todo.t = Date.now(); todo.status = 'ok'; todo.error = '';
+          todos.saveCache(items);
+          renderGrid();
+          return { ok: true, message: `Collegato: ${items.length} to-do aperti su ${total}.` };
+        } catch (e) {
+          todo.status = 'error'; todo.error = e.message; renderGrid();
+          return { ok: false, message: e.message };
+        }
+      }
+    }
   }
 });
 
@@ -1224,6 +1354,7 @@ async function init() {
 
   $('add-page').addEventListener('click', addPage);
   $('page-menu').addEventListener('click', (e) => openMenu(e.currentTarget, [
+    { label: 'Aggiungi una board To-do', run: addTodoBoard },
     { label: 'Rinomina pagina', run: () => renamePage(curPage()) },
     ...(state.workspaces.length > 1 ? [{ label: 'Sposta in un altro workspace…', run: () => pageToWsMenu($('page-menu'), curPage()) }] : []),
     { label: 'Elimina pagina', danger: true, run: () => deletePage(curPage()) }
@@ -1292,6 +1423,8 @@ async function init() {
   snapshotIfDue(state).catch(() => {});
   setTimeout(maybeNudgeBackup, 2500);
   folderOnStart().catch(() => {});
+  initTodos().catch(() => {});
+  todoTimer = setInterval(() => { if (!document.hidden) refreshTodos(); }, 5 * 60e3);
   loadHealth().then(async (hl) => {
     health = hl;
     renderGrid();
