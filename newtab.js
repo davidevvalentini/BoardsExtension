@@ -499,8 +499,10 @@ async function restoreBackup(file) {
   let data;
   try { data = JSON.parse(await file.text()); } catch { toast('Il file non è un backup valido.'); return; }
   if (!data || !Array.isArray(data.pages) || !data.pages.length) { toast('Il file non è un backup valido.'); return; }
-  const ok = await askConfirm({ title: 'Ripristinare il backup?', text: 'Sostituisce tutte le pagine, le board e le impostazioni attuali.', ok: 'Ripristina', danger: false });
-  if (ok) await replaceState(data, 'Backup ripristinato.');
+  // Un file senza impostazioni (es. creato a mano) lascia invariati tema e sfondo attuali.
+  const keepLook = !data.settings;
+  const ok = await askConfirm({ title: 'Ripristinare il backup?', text: keepLook ? 'Sostituisce tutti i workspace, le pagine e le board attuali. Tema e sfondo restano come sono.' : 'Sostituisce tutte le pagine, le board e le impostazioni attuali.', ok: 'Ripristina', danger: false });
+  if (ok) await replaceState(keepLook ? { ...data, settings: state.settings } : data, 'Backup ripristinato.');
 }
 async function restoreSnapshot(snap) {
   const when = new Date(snap.t).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
