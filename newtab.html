@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="it" data-scheme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Nuova scheda</title>
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="newtab.css">
+<link rel="stylesheet" href="settings.css">
+</head>
+<body>
+<div class="bg" id="bg" aria-hidden="true">
+  <div class="bg-img" id="bg-img"></div>
+  <div class="bg-shade"></div>
+</div>
+
+<div class="page">
+
+  <header class="top">
+    <div class="top-left">
+    <button class="ws-btn" id="ws-btn" aria-haspopup="dialog" title="Workspace"></button>
+    <div class="tabs" id="tabs-wrap">
+      <div class="tabs-list" id="tabs" role="group" aria-label="Pagine"></div>
+      <button class="icon-btn bare" id="add-page" aria-label="Nuova pagina" title="Nuova pagina"></button>
+      <button class="icon-btn bare" id="page-menu" aria-label="Opzioni pagina" title="Opzioni pagina"></button>
+    </div>
+    </div>
+
+    <div class="tools">
+      <label class="search">
+        <span id="ic-search"></span>
+        <input id="search" type="search" autocomplete="off" aria-label="Cerca nei segnalibri" placeholder="Cerca nei link">
+      </label>
+      <button class="icon-btn" id="privacy" aria-pressed="false" aria-label="Modalità privacy" title="Modalità privacy"></button>
+      <button class="icon-btn" id="settings-btn" aria-label="Impostazioni" title="Impostazioni" aria-controls="settings"></button>
+      <button class="btn-primary" id="new-board"><span id="ic-plus"></span>Nuova board</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-main">
+      <div class="clock" id="clock" aria-label="Ora attuale">--:--</div>
+      <div class="hero-text">
+        <button class="greet" id="greeting" title="Cambia nome"></button>
+        <div class="date" id="date"></div>
+      </div>
+    </div>
+    <div class="hint">
+      <span class="keys"><kbd id="key-mod">Ctrl</kbd><kbd>B</kbd></span>
+      salva la scheda aperta
+    </div>
+  </section>
+
+  <main class="grid" id="grid"></main>
+
+  <footer class="foot">
+    <a class="credit" id="credit" hidden target="_blank" rel="noopener"></a>
+  </footer>
+</div>
+
+<div class="set-overlay" id="settings" hidden></div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<input type="file" id="file" accept="application/json,.json" hidden>
+<input type="file" id="bm-file" accept=".html,.htm,text/html" hidden>
+<input type="file" id="photo" accept="image/*" hidden>
+
+<script type="module" src="newtab.js"></script>
+</body>
+</html>

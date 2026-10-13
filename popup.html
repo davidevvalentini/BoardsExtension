@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<title>Salva link</title>
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<main class="card">
+  <div class="head">
+    <h1>Salva link</h1>
+    <span class="keys"><kbd id="key-mod">Ctrl</kbd><kbd>B</kbd></span>
+  </div>
+
+  <div class="preview">
+    <span class="tile" id="tile" aria-hidden="true">?</span>
+    <div class="pv-text">
+      <div class="pv-title" id="pv-title">Scheda corrente</div>
+      <div class="pv-url" id="pv-url"></div>
+    </div>
+  </div>
+  <div class="note" id="note" role="status" hidden></div>
+
+  <div class="field">
+    <label for="title">Titolo</label>
+    <input id="title" type="text" autocomplete="off">
+  </div>
+
+  <div class="field" id="page-field" hidden>
+    <label for="page">Pagina</label>
+    <select id="page"></select>
+  </div>
+
+  <div class="field">
+    <div class="lbl" id="board-lbl">Board</div>
+    <div class="chips" id="chips" role="radiogroup" aria-labelledby="board-lbl"></div>
+    <input id="new-board" type="text" placeholder="Nome della nuova board" maxlength="40" hidden>
+  </div>
+
+  <div class="actions">
+    <button class="btn-ghost" id="cancel" type="button">Annulla</button>
+    <button class="btn-solid" id="save" type="button">Salva</button>
+  </div>
+</main>
+<script type="module" src="popup.js"></script>
+</body>
+</html>
