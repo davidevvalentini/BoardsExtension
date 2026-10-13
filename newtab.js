@@ -1,12 +1,16 @@
 import { IMAGES, GRADIENTS, HIGHLIGHTS, imageUrl, imagePage } from './catalog.js';
 import {
   uid, safeUrl, load, save, onChange, hostOf, faviconUrl, sanitizeState, sanitizeSettings, defaultSettings,
-  countLinks, snapshotIfDue, listSnapshots, putFile, getFile, delFile
+  countLinks, snapshotIfDue, listSnapshots, putFile, getFile, delFile, urlKey
 } from './store.js';
 import { applyTheme } from './theme.js';
 import { h, icon, toast, openMenu, askText, askLink, askBoard, askConfirm, askReminder, openModal } from './ui.js';
 import { mountSettings } from './settings.js';
 import { openWorkspaces } from './workspaces.js';
+import { openPalette } from './palette.js';
+import { openDuplicates, openBroken } from './tools.js';
+import { loadHealth, saveHealth, brokenOf, describe as describeHealth, hasAccess, requestAccess, dropAccess } from './health.js';
+import * as folder from './backupdir.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -18,6 +22,7 @@ let state;
 let lastJson = '';
 let drag = null; // { type: 'link'|'board', ... }
 let saveTimer;
+let health = { t: 0, items: {} };
 const iconOK = new Set(); // favicon già caricate: niente sfarfallio ai ridisegni
 
 const curPage = () => state.pages.find((p) => p.id === state.activePage) || state.pages[0];
@@ -27,15 +32,54 @@ const curWs = () => state.workspaces.find((w) => w.id === state.activeWorkspace)
 const palette = () => state.settings.boardColors;
 
 /* ——— Salvataggio ——— */
+// Cronologia per «Annulla» (Ctrl+Z): una copia della struttura (workspace, pagine, board, link) prima di ogni modifica.
+// Le impostazioni (tema, sfondo…) non fanno parte della cronologia.
+let lastStruct = '';
+const undoStack = [];
+const redoStack = [];
+// JSON con le chiavi in ordine alfabetico, per confrontare lo stesso contenuto scritto in ordini diversi.
+const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1))) : x));
+const structOf = (s) => JSON.stringify({ ...s, settings: null });
+function mark() { lastJson = JSON.stringify(state); lastStruct = structOf(state); }
+
 async function commit() {
-  lastJson = JSON.stringify(state);
+  const now = structOf(state);
+  if (lastStruct && now !== lastStruct) {
+    undoStack.push(lastStruct);
+    if (undoStack.length > 40) undoStack.shift();
+    redoStack.length = 0;
+  }
+  mark();
   await save(state);
   render();
+  scheduleFolderBackup();
 }
 function persistSoon() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { lastJson = JSON.stringify(state); save(state); }, 250);
+  saveTimer = setTimeout(() => { mark(); save(state); }, 250);
 }
+async function applyStruct(json) {
+  state = sanitizeState({ ...JSON.parse(json), settings: state.settings });
+  mark();
+  await save(state);
+  render();
+  settings.refresh();
+}
+async function undo() {
+  const prev = undoStack.pop();
+  if (!prev) { toast('Non c’è niente da annullare.'); return; }
+  redoStack.push(structOf(state));
+  await applyStruct(prev);
+  toast('Annullato.', redoStack.length ? { label: 'Ripeti', run: redo } : undefined);
+}
+async function redo() {
+  const next = redoStack.pop();
+  if (!next) { toast('Non c’è niente da ripetere.'); return; }
+  undoStack.push(structOf(state));
+  await applyStruct(next);
+  toast('Ripetuto.');
+}
+const withUndo = (msg) => toast(msg, { label: 'Annulla', run: undo });
 
 /* ——— Pagine ——— */
 async function addPage() {
@@ -60,6 +104,7 @@ async function deletePage(page) {
   state.pages = state.pages.filter((p) => p !== page);
   state.activePage = wsPages()[0].id;
   await commit();
+  withUndo(`Pagina «${page.name}» eliminata.`);
 }
 // Cambio pagina senza ridisegnare le schede: il doppio clic per rinominare resta affidabile.
 function setActivePage(id) {
@@ -81,6 +126,34 @@ function switchWorkspace(id) {
   el.search.value = '';
   commit();
 }
+// Salto da palette: pagina (anche in un altro workspace) o board (con breve evidenza).
+function goPage(pageId) {
+  const p = state.pages.find((x) => x.id === pageId);
+  if (!p) return;
+  state.activeWorkspace = p.ws;
+  state.activePage = p.id;
+  curWs().lastPage = p.id;
+  el.search.value = '';
+  render();
+  persistSoon();
+}
+async function goBoard(pageId, boardId) {
+  goPage(pageId);
+  const b = allBoards().find((x) => x.id === boardId);
+  if (b?.collapsed) { delete b.collapsed; await commit(); }
+  const node = el.grid.querySelector(`.board[data-id="${boardId}"]`);
+  if (!node) return;
+  node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  node.classList.add('flash');
+  setTimeout(() => node.classList.remove('flash'), 1600);
+}
+function openLinkFromPalette(link, { newTab }) {
+  const f = findLink(link.id);
+  if (f) countOpen(f.link);
+  openUrl(link.url, { newTab });
+}
+const openPaletteNow = () => openPalette({ getState: () => state, goPage, goBoard, openLink: openLinkFromPalette });
+
 async function addWorkspace({ name, emoji }) {
   const w = { id: uid(), name, emoji };
   const page = { id: uid(), ws: w.id, name: 'Principale', boards: [] };
@@ -111,7 +184,16 @@ async function removeWorkspace(id) {
     state.activePage = wsPages()[0].id;
   }
   await commit();
+  withUndo(`Workspace «${w.name}» eliminato.`);
   return true;
+}
+async function reorderWorkspace(id, targetId, before) {
+  const moving = state.workspaces.find((w) => w.id === id);
+  if (!moving || id === targetId) return;
+  state.workspaces = state.workspaces.filter((w) => w !== moving);
+  const at = state.workspaces.findIndex((w) => w.id === targetId);
+  state.workspaces.splice(at < 0 ? state.workspaces.length : before ? at : at + 1, 0, moving);
+  await commit();
 }
 function renderWs() {
   const w = curWs();
@@ -156,11 +238,20 @@ async function deleteBoard(page, board) {
   if (!ok) return;
   page.boards = page.boards.filter((b) => b !== board);
   await commit();
+  withUndo(`Board «${board.name}» eliminata.`);
 }
 async function sortBoard(board) {
   if (isLocked(board)) return;
   board.links.sort((a, b) => a.title.localeCompare(b.title, 'it', { sensitivity: 'base' }));
   await commit();
+  withUndo('Board ordinata dalla A alla Z.');
+}
+// Più aperti per primi (i link fissati restano in cima).
+async function sortByUse(board) {
+  if (isLocked(board)) return;
+  board.links.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (b.opens || 0) - (a.opens || 0) || (b.last || 0) - (a.last || 0));
+  await commit();
+  withUndo('Board ordinata per uso.');
 }
 async function openAll(board) {
   if (!board.links.length) return;
@@ -168,7 +259,7 @@ async function openAll(board) {
     const ok = await askConfirm({ title: `Aprire ${board.links.length} schede?`, text: `Verranno aperte tutte le pagine di «${board.name}».`, ok: 'Apri tutte', danger: false });
     if (!ok) return;
   }
-  board.links.forEach((l) => chrome.tabs.create({ url: l.url, active: false }));
+  board.links.forEach((l) => { chrome.tabs.create({ url: l.url, active: false }); countOpen(l); });
 }
 
 /* ——— Link ——— */
@@ -176,10 +267,20 @@ function isLocked(board) {
   if (board?.locked) { toast(`«${board.name}» è bloccata: sbloccala per modificarla.`); return true; }
   return false;
 }
+function findByUrl(url) {
+  const key = urlKey(url);
+  for (const page of state.pages) for (const board of page.boards) for (const link of board.links) if (urlKey(link.url) === key) return { page, board, link };
+  return null;
+}
 async function addLink(board) {
   if (isLocked(board)) return;
   const r = await askLink({ title: 'Aggiungi link', ok: 'Aggiungi' });
   if (!r) return;
+  const dup = findByUrl(r.url);
+  if (dup) {
+    const ok = await askConfirm({ title: 'Link già salvato', text: `Questo indirizzo è già in «${dup.board.name}» (${dup.page.name}). Aggiungerlo comunque?`, ok: 'Aggiungi comunque', danger: false });
+    if (!ok) return;
+  }
   board.links.push({ id: uid(), title: r.title, url: r.url });
   await commit();
 }
@@ -193,18 +294,23 @@ async function editLink(board, link) {
 }
 async function deleteLink(board, link) {
   if (isLocked(board)) return;
-  const idx = board.links.indexOf(link);
-  board.links.splice(idx, 1);
+  board.links.splice(board.links.indexOf(link), 1);
   await commit();
-  toast('Link eliminato.', {
-    label: 'Annulla',
-    run: async () => {
-      const b = allBoards().find((x) => x.id === board.id);
-      if (!b) return;
-      b.links.splice(Math.min(idx, b.links.length), 0, link);
-      await commit();
-    }
-  });
+  withUndo('Link eliminato.');
+}
+// Elimina più link in una volta (doppioni, link rotti). Le board bloccate non si toccano.
+async function removeLinks(ids, msg) {
+  const set = new Set(ids);
+  let n = 0;
+  for (const b of allBoards()) {
+    if (b.locked) continue;
+    const before = b.links.length;
+    b.links = b.links.filter((l) => !set.has(l.id));
+    n += before - b.links.length;
+  }
+  if (!n) return;
+  await commit();
+  withUndo(msg);
 }
 async function duplicateLink(board, link) {
   if (isLocked(board)) return;
@@ -321,7 +427,7 @@ async function moveBoardToPage(boardId, pageId) {
   from.boards = from.boards.filter((x) => x !== b);
   to.boards.push(b);
   await commit();
-  toast(`Board spostata in «${to.name}».`);
+  withUndo(`Board spostata in «${to.name}».`);
 }
 
 async function renameGreeting() {
@@ -471,7 +577,7 @@ async function mergeImported(groups, mode) {
   state.activePage = target.id;
   ws.lastPage = target.id;
   await commit();
-  toast(added ? `Importati ${added} link nuovi.` : 'Era già tutto importato.');
+  if (added) withUndo(`Importati ${added} link nuovi.`); else toast('Era già tutto importato.');
 }
 
 function exportBackup() {
@@ -492,7 +598,7 @@ async function replaceState(next, message) {
   applyAll();
   await commit();
   settings.refresh();
-  toast(message);
+  withUndo(message);
 }
 
 async function restoreBackup(file) {
@@ -603,9 +709,22 @@ function openUrl(url, { newTab = false, background = false } = {}) {
   if (newTab || state.settings.openNew) chrome.tabs.create({ url, active: !background });
   else chrome.tabs.update({ url });
 }
+// Contatore locale delle aperture (per «più usati»). Si salva subito: la pagina potrebbe chiudersi aprendo il link.
+function countOpen(link) {
+  link.opens = (link.opens || 0) + 1;
+  link.last = Date.now();
+  mark();
+  save(state);
+}
+function recordOpen(a) {
+  const f = a?.dataset.id && findLink(a.dataset.id);
+  if (f) countOpen(f.link);
+}
 el.grid.addEventListener('click', (e) => {
   const a = e.target.closest('a.row');
-  if (!a || a.hasAttribute('href')) return;
+  if (!a) return;
+  recordOpen(a);
+  if (a.hasAttribute('href')) return;
   e.preventDefault();
   openUrl(a.dataset.href, { newTab: e.ctrlKey || e.metaKey || e.shiftKey, background: e.ctrlKey || e.metaKey });
   doneReminder(a);
@@ -617,17 +736,24 @@ function doneReminder(a) {
 }
 el.grid.addEventListener('auxclick', (e) => {
   const a = e.target.closest('a.row');
-  if (e.button !== 1 || !a || a.hasAttribute('href')) return;
+  if (e.button !== 1 || !a) return;
+  recordOpen(a);
+  if (a.hasAttribute('href')) return;
   e.preventDefault();
   openUrl(a.dataset.href, { newTab: true, background: true });
   doneReminder(a);
 });
 el.grid.addEventListener('keydown', (e) => {
   const a = e.target.closest?.('a.row');
-  if (e.key === 'Enter' && a && !a.hasAttribute('href')) { e.preventDefault(); openUrl(a.dataset.href); doneReminder(a); }
+  if (e.key === 'Enter' && a && !a.hasAttribute('href')) { e.preventDefault(); recordOpen(a); openUrl(a.dataset.href); doneReminder(a); }
 });
 
 /* ——— Disegno dell'interfaccia ——— */
+function brokenFlag(link) {
+  const r = health.items[link.id];
+  if (!r || r.ok || r.ignore) return null;
+  return h('span', { class: 'flag warn', title: `${describeHealth(r)} · controllato il ${new Date(r.t).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}` }, icon('alert', 16));
+}
 function linkItem(board, link, canDrag) {
   const tile = h('span', { class: 'tile', 'aria-hidden': 'true' }, (link.title || '?').charAt(0).toUpperCase());
   if (state.settings.icons === 'favicon' && /^https?:/.test(link.url)) {
@@ -647,7 +773,8 @@ function linkItem(board, link, canDrag) {
       h('span', { class: 'h' }, hostOf(link.url))),
     h('span', { class: 'flags' },
       link.remind ? h('span', { class: 'flag bell' + (due ? ' due' : ''), title: due ? `Promemoria scaduto (${when})` : `Promemoria: ${when}` }, icon('bell', 16)) : null,
-      link.pinned ? h('span', { class: 'flag', title: 'Fissato in alto' }, icon('pin', 16)) : null));
+      link.pinned ? h('span', { class: 'flag', title: 'Fissato in alto' }, icon('pin', 16)) : null,
+      brokenFlag(link)));
   if (!state.privacy && /^https?:/.test(link.url)) {
     a.href = link.url;
     if (state.settings.openNew) { a.target = '_blank'; a.rel = 'noopener'; }
@@ -697,6 +824,7 @@ function boardEl(page, board, links, searching) {
           { icon: 'plus', label: 'Aggiungi link', run: () => addLink(board) }]),
         { icon: 'external', label: 'Apri tutte le pagine', run: () => openAll(board) },
         ...(board.locked ? [] : [{ icon: 'tray', label: 'Ordina dalla A alla Z', run: () => sortBoard(board) }]),
+        ...(board.locked || !board.links.some((l) => l.opens) ? [] : [{ icon: 'tray', label: 'Ordina per più usati', run: () => sortByUse(board) }]),
         { icon: 'move', label: 'Sposta in un’altra pagina…', run: () => boardToPageMenu(e.currentTarget, board) },
         { icon: board.locked ? 'unlock' : 'lock', label: board.locked ? 'Sblocca la board' : 'Blocca la board', run: () => toggleLock(board) },
         ...(board.locked ? [] : [{ rule: true }, { icon: 'trash', label: 'Elimina board', danger: true, run: () => deleteBoard(page, board) }])
@@ -977,6 +1105,64 @@ function tickClock(force) {
   el.date.textContent = d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+/* ——— Strumenti: doppioni e link rotti ——— */
+const toolCtx = {
+  getState: () => state,
+  removeLinks,
+  refresh: async () => { health = await loadHealth(); renderGrid(); },
+  openUrl: (url) => chrome.tabs.create({ url })
+};
+async function resetUsage() {
+  const ok = await askConfirm({ title: 'Azzerare i contatori?', text: 'Si cancella il conteggio di quante volte hai aperto ogni link (serve per «più usati»).', ok: 'Azzera', danger: false });
+  if (!ok) return;
+  for (const b of allBoards()) for (const l of b.links) { delete l.opens; delete l.last; }
+  await commit();
+  toast('Contatori azzerati.');
+}
+async function setAutoHealth(on) {
+  if (on && !(await hasAccess()) && !(await requestAccess())) return false;
+  if (!on) await dropAccess().catch(() => {});
+  state.settings.healthCheck = on;
+  persistSoon();
+  return true;
+}
+
+/* ——— Backup automatico in una cartella ——— */
+let folderTimer;
+function scheduleFolderBackup() {
+  clearTimeout(folderTimer);
+  folderTimer = setTimeout(async () => { if ((await folder.maybeWrite(state, 2 * 3600e3)) === 'written') settings.refresh(); }, 20000);
+}
+const folderActions = {
+  supported: folder.supported,
+  status: folder.status,
+  async choose() {
+    try { await folder.choose(); } catch (e) { if (e?.name !== 'AbortError') toast('Non riesco ad aprire quella cartella.'); return; }
+    const r = await folder.writeNow(state);
+    toast(r.ok ? 'Cartella collegata: prima copia salvata.' : r.err);
+    settings.refresh();
+  },
+  async writeNow() {
+    const r = await folder.writeNow(state);
+    toast(r.ok ? 'Copia salvata nella cartella.' : r.err);
+    settings.refresh();
+  },
+  async reauthorize() {
+    if (await folder.reauthorize()) { await folder.writeNow(state); toast('Cartella riautorizzata.'); } else toast('Permesso non concesso.');
+    settings.refresh();
+  },
+  async unlink() { await folder.unlink(); toast('Cartella scollegata.'); settings.refresh(); }
+};
+async function folderOnStart() {
+  const r = await folder.maybeWrite(state, 12 * 3600e3);
+  if (r !== 'prompt') return;
+  try {
+    if (Date.now() - Number(localStorage.getItem('folderNudge') || 0) < 86400e3) return;
+    localStorage.setItem('folderNudge', String(Date.now()));
+  } catch { /* senza localStorage si mostra comunque */ }
+  toast('Il backup nella cartella aspetta il tuo consenso.', { label: 'Riautorizza', run: folderActions.reauthorize });
+}
+
 /* ——— Impostazioni ——— */
 const settings = mountSettings($('settings'), {
   getState: () => state,
@@ -991,7 +1177,12 @@ const settings = mountSettings($('settings'), {
   recolor,
   pickPhoto,
   removePhoto,
-  actions: { importChrome: importFromChrome, importHtml: () => el.bookmarks.click(), exportBackup, restoreFile: () => el.file.click(), restoreSnapshot, resetSettings }
+  actions: {
+    importChrome: importFromChrome, importHtml: () => el.bookmarks.click(), exportBackup, restoreFile: () => el.file.click(), restoreSnapshot, resetSettings,
+    findDuplicates: () => { settings.close(); openDuplicates(toolCtx); },
+    checkLinks: () => { settings.close(); openBroken(toolCtx); },
+    resetUsage, setAutoHealth, folder: folderActions
+  }
 });
 
 function dueSignature() {
@@ -1012,7 +1203,7 @@ function maybeNudgeBackup() {
 /* ——— Avvio ——— */
 async function init() {
   state = await load();
-  lastJson = JSON.stringify(state);
+  mark();
 
   $('ic-search').append(icon('search', 18));
   $('ic-plus').append(icon('plus', 18));
@@ -1032,7 +1223,7 @@ async function init() {
     if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.tabs.scrollWidth > el.tabs.clientWidth) { el.tabs.scrollLeft += e.deltaY; e.preventDefault(); }
   }, { passive: false });
   $('new-board').addEventListener('click', addBoard);
-  $('ws-btn').addEventListener('click', () => openWorkspaces({ getState: () => state, switchTo: switchWorkspace, add: addWorkspace, remove: removeWorkspace, rename: renameWorkspace }));
+  $('ws-btn').addEventListener('click', () => openWorkspaces({ getState: () => state, switchTo: switchWorkspace, add: addWorkspace, remove: removeWorkspace, rename: renameWorkspace, reorder: reorderWorkspace }));
   $('settings-btn').addEventListener('click', () => settings.toggle());
   el.privacy.addEventListener('click', () => { state.privacy = !state.privacy; render(); persistSoon(); });
   el.greeting.addEventListener('click', renameGreeting);
@@ -1055,16 +1246,27 @@ async function init() {
   });
   document.addEventListener('keydown', (e) => {
     const tag = (e.target.tagName || '').toLowerCase();
-    if (e.key === '/' && tag !== 'input' && !document.querySelector('dialog[open]')) {
+    const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+    const modal = !!document.querySelector('dialog[open]');
+    const mod = e.ctrlKey || e.metaKey;
+    if (e.key === '/' && !typing && !modal) {
       e.preventDefault();
       el.search.focus();
+    } else if (mod && !e.altKey && e.key.toLowerCase() === 'k' && !modal) {
+      e.preventDefault();
+      openPaletteNow();
+    } else if (mod && !e.altKey && !typing && !modal && !settings.isOpen() && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
+      e.preventDefault();
+      if (e.key.toLowerCase() === 'y' || e.shiftKey) redo(); else undo();
     }
   });
 
   onChange((next) => {
-    if (JSON.stringify(next) === lastJson || drag) return;
+    if (drag || canon(next) === canon(state)) return; // chrome.storage riordina le chiavi: si confronta in forma canonica
     state = sanitizeState(next);
-    lastJson = JSON.stringify(state);
+    mark();
+    undoStack.length = 0;
+    redoStack.length = 0;
     applyAll();
     render();
     settings.refresh();
@@ -1080,6 +1282,23 @@ async function init() {
   }, 1000);
   snapshotIfDue(state).catch(() => {});
   setTimeout(maybeNudgeBackup, 2500);
+  folderOnStart().catch(() => {});
+  loadHealth().then(async (hl) => {
+    health = hl;
+    renderGrid();
+    const bad = brokenOf(hl);
+    if (bad.length && hl.t > (hl.notified || 0)) {
+      hl.notified = hl.t;
+      await saveHealth(hl);
+      toast(`${bad.length} ${bad.length === 1 ? 'link non risponde più' : 'link non rispondono più'}.`, { label: 'Vedi', run: () => openBroken(toolCtx) });
+    }
+  }).catch(() => {});
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.linkHealth?.newValue) {
+      health = changes.linkHealth.newValue;
+      if (!drag && !document.querySelector('dialog[open]')) renderGrid();
+    }
+  });
 }
 
 init();

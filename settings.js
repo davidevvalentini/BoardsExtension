@@ -186,9 +186,52 @@ export function mountSettings(root, ctx) {
         h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.importHtml() }, 'Importa da file HTML…'),
         h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.exportBackup() }, 'Esporta backup'),
         h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.restoreFile() }, 'Ripristina da file…')),
-      h('div', { class: 'set-label' }, h('span', {}, 'Copie automatiche (una al giorno)')),
+
+      h('div', { class: 'set-label set-sub' }, h('span', {}, 'Backup automatico in una cartella')),
+      folderBlock(),
+
+      h('div', { class: 'set-label set-sub' }, h('span', {}, 'Manutenzione')),
+      h('div', { class: 'btn-row wrap' },
+        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.checkLinks() }, 'Controlla i link rotti…'),
+        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.findDuplicates() }, 'Trova i link doppi…'),
+        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.resetUsage() }, 'Azzera i contatori di utilizzo')),
+      toggle('Controlla i link ogni settimana', S().healthCheck, async (v) => {
+        const ok = await ctx.actions.setAutoHealth(v);
+        if (!ok) render();
+      }, 'In background, con il permesso di accedere ai siti. Il risultato compare accanto ai link.'),
+
+      h('div', { class: 'set-label set-sub' }, h('span', {}, 'Copie automatiche (una al giorno)')),
       snapBox,
       h('button', { type: 'button', class: 'link-btn danger', onclick: () => ctx.actions.resetSettings() }, 'Ripristina le impostazioni predefinite'));
+  }
+
+  // Stato della cartella di backup: si riempie appena la lettura asincrona è pronta.
+  function folderBlock() {
+    const f = ctx.actions.folder;
+    const box = h('div', { class: 'set-block' });
+    if (!f.supported()) {
+      box.append(h('p', { class: 'set-note' }, 'Questo browser non permette di scegliere una cartella.'));
+      return box;
+    }
+    box.append(h('p', { class: 'set-note' }, 'Controllo…'));
+    f.status().then((st) => {
+      const when = st.meta.t ? new Date(st.meta.t).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : 'mai';
+      const btn = (label, fn, cls = 'btn-soft') => h('button', { type: 'button', class: cls, onclick: fn }, label);
+      if (st.state === 'none') {
+        box.replaceChildren(
+          h('p', { class: 'set-note' }, 'Scegli una cartella (anche dentro Google Drive o Dropbox): ogni giorno ci scrivo una copia, e tengo le ultime 10.'),
+          h('div', { class: 'btn-row wrap' }, btn('Scegli la cartella…', () => f.choose())));
+        return;
+      }
+      box.replaceChildren(
+        h('p', { class: 'set-note' }, `Cartella: «${st.name}» · ultima copia: ${when}.${st.meta.err ? ' ' + st.meta.err : ''}`),
+        ...(st.state === 'prompt' ? [h('p', { class: 'set-note warn' }, 'Chrome chiede di riautorizzare la cartella (succede dopo aver riavviato il browser).')] : []),
+        h('div', { class: 'btn-row wrap' },
+          st.state === 'prompt' ? btn('Riautorizza', () => f.reauthorize(), 'btn-solid') : btn('Salva ora', () => f.writeNow()),
+          btn('Cambia cartella…', () => f.choose()),
+          btn('Scollega', () => f.unlink())));
+    }).catch(() => box.replaceChildren(h('p', { class: 'set-note' }, 'Impossibile leggere lo stato della cartella.')));
+    return box;
   }
 
   /* ——— Disegno della finestra ——— */

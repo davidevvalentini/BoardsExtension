@@ -30,6 +30,7 @@ const ICONS = {
   lock: '<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 018 0v3"/>',
   unlock: '<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 017.5-1.6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  alert: '<path d="M12 4L3 19.5h18L12 4zM12 10v4.5M12 17v.2"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
   eyeOff: '<path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A9.8 9.8 0 0112 5c5 0 8.5 4.2 9.5 7-.4 1.1-1.2 2.5-2.4 3.8M6.5 6.6C4.4 8 3 10.2 2.5 12c1 2.8 4.5 7 9.5 7 1.5 0 2.9-.4 4.1-1"/>',
   tray: '<path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"/>',

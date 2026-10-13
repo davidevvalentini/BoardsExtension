@@ -1,11 +1,13 @@
 // Promemoria dei link: controlla ogni minuto (e subito a ogni modifica) cosa è scaduto.
 import { load, save, hostOf } from './store.js';
+import { hasAccess, loadHealth, saveHealth, checkLinks, mergeHealth, dueForCheck, looksOffline } from './health.js';
 
 const TICK = 'tick';
 const SNOOZE = 3600e3;
 
 async function ensureTick() {
   if (!(await chrome.alarms.get(TICK))) chrome.alarms.create(TICK, { periodInMinutes: 1 });
+  if (!(await chrome.alarms.get('health'))) chrome.alarms.create('health', { delayInMinutes: 2, periodInMinutes: 360 });
 }
 
 function* links(state) {
@@ -63,7 +65,23 @@ chrome.notifications.onButtonClicked.addListener(async (nid, btn) => {
   check();
 });
 
-chrome.alarms.onAlarm.addListener(check);
+// Controllo dei link rotti (solo se l'hai attivato e hai dato il permesso): ogni link al massimo una volta a settimana.
+async function healthRun() {
+  try {
+    const state = await load();
+    if (!state.settings.healthCheck || !(await hasAccess()) || !self.navigator.onLine) return;
+    const old = await loadHealth();
+    const all = [...links(state)];
+    const todo = all.filter((l) => dueForCheck(old.items[l.id])).sort((a, b) => (old.items[a.id]?.t || 0) - (old.items[b.id]?.t || 0));
+    if (!todo.length) return;
+    const results = await checkLinks(todo, { deadline: Date.now() + 4 * 60e3 });
+    if (looksOffline(results)) return;
+    const fresh = await loadHealth();
+    await saveHealth(mergeHealth(fresh, results, all.map((l) => l.id)));
+  } catch { /* riproverà alla prossima occasione */ }
+}
+
+chrome.alarms.onAlarm.addListener((a) => (a.name === 'health' ? healthRun() : check()));
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.boards) check(); });
 chrome.runtime.onInstalled.addListener(() => { ensureTick(); check(); });
 chrome.runtime.onStartup.addListener(() => { ensureTick(); check(); });

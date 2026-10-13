@@ -1,4 +1,4 @@
-import { load, save, uid, hostOf, faviconUrl, boardPalette } from './store.js';
+import { load, save, uid, hostOf, faviconUrl, boardPalette, urlKey, safeUrl } from './store.js';
 import { applyTheme } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
@@ -55,11 +55,43 @@ function showNote(text, isError = false) {
 }
 
 function checkDuplicate() {
+  const key = urlKey(tab.url);
   for (const p of state.pages) {
     for (const b of p.boards) {
-      if (b.links.some((l) => l.url === tab.url)) { showNote(`Già salvato in «${b.name}».`); return; }
+      if (b.links.some((l) => urlKey(l.url) === key)) { showNote(`Già salvato in «${b.name}» (${p.name}).`); return; }
     }
   }
+}
+
+// Salva tutte le schede della finestra in una nuova board (salta quelle già salvate). Serve il permesso opzionale «schede».
+async function saveAll() {
+  const btn = $('all');
+  btn.disabled = true;
+  let granted = false;
+  try { granted = await chrome.permissions.request({ permissions: ['tabs'] }); } catch { /* resta false */ }
+  if (!granted) { showNote('Serve il permesso di leggere le schede aperte. Se il popup si è chiuso, riaprilo e riprova.', true); btn.disabled = false; return; }
+  const tabs = (await chrome.tabs.query({ currentWindow: true })).filter((t) => /^https?:/i.test(t.url || ''));
+  const fresh = await load();
+  const known = new Set(fresh.pages.flatMap((p) => p.boards.flatMap((b) => b.links.map((l) => urlKey(l.url)))));
+  const items = [];
+  for (const t of tabs) {
+    const url = safeUrl(t.url);
+    const key = url && urlKey(url);
+    if (!url || known.has(key)) continue;
+    known.add(key);
+    items.push({ id: uid(), url, title: (t.title || '').trim().slice(0, 200) || hostOf(url) });
+  }
+  if (!items.length) { showNote('Le schede aperte sono già tutte salvate.'); btn.disabled = false; return; }
+  const p = fresh.pages.find((x) => x.id === pageId) || fresh.pages[0];
+  const typed = boardId === NEW ? $('new-board').value.trim() : '';
+  const name = (typed || `Sessione ${new Date().toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`).slice(0, 60);
+  const pal = boardPalette(fresh);
+  const board = { id: uid(), name, color: pal[p.boards.length % pal.length], links: items };
+  p.boards.push(board);
+  fresh.lastBoard = board.id;
+  await save(fresh);
+  showNote(`Salvate ${items.length} ${items.length === 1 ? 'scheda' : 'schede'} in «${name}».`);
+  setTimeout(() => window.close(), 1100);
 }
 
 async function doSave() {
@@ -96,6 +128,7 @@ async function init() {
   [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || !tab.url || !/^https?:/i.test(tab.url)) {
     $('save').disabled = true;
+    $('all').disabled = true;
     $('title').disabled = true;
     $('pv-title').textContent = 'Questa pagina non si può salvare';
     $('pv-url').textContent = 'Le pagine interne di Chrome non sono supportate.';
@@ -128,6 +161,7 @@ async function init() {
   });
   $('cancel').addEventListener('click', () => window.close());
   $('save').addEventListener('click', doSave);
+  $('all').addEventListener('click', saveAll);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && e.target.tagName !== 'BUTTON') { e.preventDefault(); doSave(); }
     if (e.key === 'Escape') window.close();

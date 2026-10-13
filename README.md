@@ -27,8 +27,13 @@ Workspace  (es. 🌤️ Personale, 💼 Lavoro)
 - **Impostazioni** (finestra centrale): temi e colore di accento personalizzabili, colori delle board, orologio e saluto, icone, larghezza colonne.
 - **Sfondi**: tinta unita, sfumature, foto 4K da Wikimedia Commons (fisse o a rotazione), oppure una tua foto.
 - **Importazione**: dai segnalibri di Chrome o da un file HTML (Chrome, Edge, Firefox, Safari); una pagina per cartella principale, sottocartelle come board.
-- **Popup** `Ctrl+B` (`⌘B` su Mac) per salvare la scheda aperta.
-- **Dati**: backup/ripristino JSON, copie automatiche giornaliere (ultime 5), modalità privacy.
+- **Cerca e salta** con `Ctrl+K` (`⌘K`): workspace, pagine, board e link in un'unica ricerca; a campo vuoto mostra i link più usati. `/` porta alla ricerca nella pagina.
+- **Più usati**: un contatore locale delle aperture permette di ordinare una board «per più usati».
+- **Annulla / Ripeti** (`Ctrl+Z`, `Ctrl+Shift+Z`) per qualsiasi modifica a link, board, pagine e workspace, oltre al pulsante «Annulla» negli avvisi.
+- **Doppioni**: avviso quando salvi un indirizzo già presente (anche scritto in modo diverso: `www`, `http`/`https`, parametri `utm`…) e finestra «Trova i link doppi».
+- **Link rotti**: controllo su richiesta (o ogni settimana, in background) con segnalazione accanto al link; permesso «accesso ai siti» chiesto solo quando lo attivi.
+- **Popup** `Ctrl+B` (`⌘B` su Mac) per salvare la scheda aperta, oppure «Tutte le schede» per salvarle tutte in una nuova board.
+- **Dati**: backup/ripristino JSON, copie automatiche giornaliere (ultime 5), **backup in una cartella** a tua scelta (es. dentro Google Drive o Dropbox: una copia al giorno, ultime 10), modalità privacy.
 
 ## Installazione (modalità sviluppatore)
 
@@ -48,6 +53,8 @@ Il campo `key` nel `manifest.json` è la chiave **pubblica** che fissa l'ID dell
 | `favicon` | icone dei siti dalla cache di Chrome |
 | `alarms`, `notifications` | promemoria dei link |
 | `bookmarks` (opzionale) | richiesto solo quando importi i segnalibri di Chrome |
+| `tabs` (opzionale) | richiesto solo quando premi «Tutte le schede» nel popup |
+| accesso ai siti (opzionale) | richiesto solo per il controllo dei link rotti; l'estensione contatta soltanto gli indirizzi che hai salvato |
 
 Le foto di sfondo sono caricate da `commons.wikimedia.org` solo se scegli uno sfondo "Foto".
 
@@ -61,8 +68,11 @@ Le foto di sfondo sono caricate da `commons.wikimedia.org` solo se scegli uno sf
 | `store.js` | modello dati, sanificazione, archivio, copie automatiche |
 | `catalog.js` | temi, colori, sfumature e catalogo delle foto |
 | `theme.js`, `ui.js`, `base.css` | tema, componenti (menu, finestre, avvisi), stili base |
+| `palette.js` | ricerca e salto con `Ctrl+K` |
+| `tools.js`, `health.js` | doppioni e controllo dei link rotti |
+| `backupdir.js` | backup automatico in una cartella |
 | `popup.*` | popup di salvataggio rapido |
-| `background.js` | service worker dei promemoria |
+| `background.js` | service worker: promemoria e controllo settimanale dei link |
 
 ## Crediti foto
 

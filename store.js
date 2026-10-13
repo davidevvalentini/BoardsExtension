@@ -21,7 +21,8 @@ export function defaultSettings() {
     openNew: false,
     icons: 'favicon',
     privacyBoards: true,
-    layout: { colMin: 290 }
+    layout: { colMin: 290 },
+    healthCheck: false
   };
 }
 
@@ -65,7 +66,8 @@ export function sanitizeSettings(raw) {
     openNew: bool(r.openNew, d.openNew),
     icons: oneOf(r.icons, ['favicon', 'letter'], d.icons),
     privacyBoards: bool(r.privacyBoards, d.privacyBoards),
-    layout: { colMin: num(l.colMin, d.layout.colMin, 240, 420) }
+    layout: { colMin: num(l.colMin, d.layout.colMin, 240, 420) },
+    healthCheck: bool(r.healthCheck, d.healthCheck)
   };
 }
 
@@ -88,6 +90,36 @@ export function safeUrl(raw) {
   } catch {
     return '';
   }
+}
+
+// Chiave per riconoscere lo stesso indirizzo scritto in modi diversi (www, http/https, # finale, parametri di tracciamento).
+const TRACKING = /^(utm_|fbclid$|gclid$|mc_cid$|mc_eid$|igshid$|ref_src$)/i;
+export function urlKey(raw) {
+  try {
+    const u = new URL(raw);
+    if (u.protocol === 'chrome:') return raw;
+    const params = [...u.searchParams.entries()].filter(([k]) => !TRACKING.test(k)).sort(([a], [b]) => a.localeCompare(b));
+    const q = params.length ? '?' + params.map(([k, v]) => `${k}=${v}`).join('&') : '';
+    const path = u.pathname.replace(/\/+$/, '');
+    return `${u.hostname.replace(/^www\./, '').toLowerCase()}${u.port ? ':' + u.port : ''}${path}${q}`;
+  } catch {
+    return raw;
+  }
+}
+
+// Gruppi di link con lo stesso indirizzo: [{ key, items: [{ link, board, page }] }] (solo con 2+ elementi).
+export function findDuplicates(state) {
+  const map = new Map();
+  for (const page of state.pages) {
+    for (const board of page.boards) {
+      for (const link of board.links) {
+        const k = urlKey(link.url);
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push({ link, board, page });
+      }
+    }
+  }
+  return [...map.entries()].filter(([, items]) => items.length > 1).map(([key, items]) => ({ key, items }));
 }
 
 export function hostOf(url) {
@@ -160,7 +192,9 @@ export function sanitizeState(raw) {
               ...(l.pinned === true ? { pinned: true } : {}),
               ...(HEX.test(l.color) ? { color: l.color } : {}),
               ...(typeof l.remind === 'number' && l.remind > 0 && l.remind < 4e12 ? { remind: l.remind } : {}),
-              ...(l.notified === true && typeof l.remind === 'number' ? { notified: true } : {})
+              ...(l.notified === true && typeof l.remind === 'number' ? { notified: true } : {}),
+              ...(Number.isInteger(l.opens) && l.opens > 0 ? { opens: Math.min(l.opens, 1e6) } : {}),
+              ...(typeof l.last === 'number' && l.last > 0 && l.last < 4e12 ? { last: l.last } : {})
             }))
             .filter((l) => l.url)
             .map((l) => ({ ...l, title: l.title || hostOf(l.url) }))

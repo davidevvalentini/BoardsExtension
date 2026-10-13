@@ -14,12 +14,44 @@ export function openWorkspaces(ctx) {
     return `${pages.length} ${pages.length === 1 ? 'pagina' : 'pagine'} · ${links} link`;
   }
 
+  // Trascinando una riga si cambia l'ordine dei workspace.
+  let dragId = null;
+  function wireDrag(row, id) {
+    row.addEventListener('dragstart', (e) => {
+      dragId = id;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', id);
+      setTimeout(() => row.classList.add('dragging'));
+    });
+    row.addEventListener('dragend', () => { dragId = null; clearMarks(); row.classList.remove('dragging'); });
+    row.addEventListener('dragover', (e) => {
+      if (!dragId || dragId === id) return;
+      e.preventDefault();
+      clearMarks();
+      const r = row.getBoundingClientRect();
+      row.dataset.drop = e.clientY < r.top + r.height / 2 ? 'before' : 'after';
+    });
+    row.addEventListener('dragleave', () => row.removeAttribute('data-drop'));
+    row.addEventListener('drop', async (e) => {
+      if (!dragId || dragId === id) return;
+      e.preventDefault();
+      const before = row.dataset.drop === 'before';
+      const from = dragId;
+      dragId = null;
+      clearMarks();
+      await ctx.reorder(from, id, before);
+      render();
+    });
+  }
+  const clearMarks = () => body.querySelectorAll('[data-drop]').forEach((n) => n.removeAttribute('data-drop'));
+
   function render() {
     const st = ctx.getState();
     const only = st.workspaces.length === 1;
     const rows = st.workspaces.map((w) => {
       const active = w.id === st.activeWorkspace;
-      return h('div', { class: 'ws-row' + (active ? ' active' : '') },
+      const rowEl = h('div', { class: 'ws-row' + (active ? ' active' : ''), draggable: only ? null : 'true', dataset: { id: w.id } },
+        only ? null : h('span', { class: 'ws-grip', 'aria-hidden': 'true', title: 'Trascina per cambiare l’ordine' }, '⋮⋮'),
         h('button', {
           type: 'button', class: 'ws-pick', 'aria-label': active ? `${w.name}, attivo` : `Passa a ${w.name}`,
           onclick: () => { if (!active) { ctx.switchTo(w.id); } close(); }
@@ -29,6 +61,8 @@ export function openWorkspaces(ctx) {
         active ? h('span', { class: 'ws-state' }, icon('check', 18), 'Attivo') : null),
         h('button', { type: 'button', class: 'icon-btn bare', title: 'Rinomina', 'aria-label': `Rinomina ${w.name}`, onclick: async () => { await ctx.rename(w.id); render(); } }, icon('pencil', 18)),
         h('button', { type: 'button', class: 'icon-btn bare', title: only ? 'Serve almeno un workspace' : 'Elimina', 'aria-label': `Elimina ${w.name}`, disabled: only ? true : null, onclick: async () => { if (await ctx.remove(w.id)) render(); } }, icon('trash', 18)));
+      if (!only) wireDrag(rowEl, w.id);
+      return rowEl;
     });
 
     const name = h('input', { type: 'text', class: 'ws-input', placeholder: 'Nome del workspace', maxlength: 30, 'aria-label': 'Nome del nuovo workspace' });
