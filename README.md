@@ -82,7 +82,7 @@ Le foto di sfondo sono caricate da `commons.wikimedia.org` solo se scegli uno sf
 
 ## Release
 
-Ogni versione ha un tag `vX.Y.Z` e una [release](../../releases) con lo ZIP pronto da caricare in `chrome://extensions`. Per pubblicarne una: aggiorna `version` nel `manifest.json`, esegui `scripts/build-zip.sh`, poi `git tag vX.Y.Z && git push --tags` e allega lo ZIP alla release.
+Ogni versione ha un tag `vX.Y.Z` e una [release](../../releases) con lo ZIP pronto da caricare in `chrome://extensions`. Per pubblicarne una: aggiorna `version` nel `manifest.json`, fai il commit e carica il tag (`git tag vX.Y.Z && git push origin vX.Y.Z`). Il workflow `.github/workflows/release.yml` controlla che tag e versione coincidano, esegue le prove, crea lo ZIP con `scripts/build-zip.sh` e lo allega alla release. (In alternativa si può creare la release dal sito: lo ZIP viene allegato in automatico.)
 
 ## Crediti foto
 
