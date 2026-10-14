@@ -12,6 +12,9 @@ import { openDuplicates, openBroken } from './tools.js';
 import { loadHealth, saveHealth, brokenOf, describe as describeHealth, hasAccess, requestAccess, dropAccess } from './health.js';
 import * as folder from './backupdir.js';
 import * as todos from './todo.js';
+import { treeToItems, htmlToItems } from './importer.js';
+import { runWizard } from './wizard.js';
+import { saveRules, clearRules } from './learned.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -442,152 +445,97 @@ async function renameGreeting() {
 
 // Al primo avvio chiede il nome (una sola volta, anche se lo salti).
 async function askNameFirstTime() {
-  if (state.settings.nameAsked) return;
+  if (state.settings.nameAsked || countLinks(state) > 0) return; // solo al primo avvio, a schede vuote
   const name = await askText({ title: 'Come ti chiami?', label: 'Nome nel saluto (puoi lasciarlo vuoto)', value: '', ok: 'Continua', allowEmpty: true });
   state.settings.nameAsked = true;
   if (name) state.settings.name = name;
   await commit();
   tickClock(true);
+  if (countLinks(state) === 0) await askStart();
+}
+
+// Subito dopo il nome: da dove vuoi cominciare? (così chi arriva qui per la prima volta sa dove andare)
+async function askStart() {
+  let value = 'chrome';
+  const opts = [
+    ['chrome', 'Importa i segnalibri di Chrome', 'Ti chiederà il permesso di leggerli e poi ti guiderà a organizzarli.'],
+    ['html', 'Importa un file di segnalibri (HTML)', 'Quello esportato da Chrome, Edge, Firefox o Safari.'],
+    ['backup', 'Ripristina un backup di Boards', 'Un file .json esportato da questa estensione.'],
+    ['zero', 'Parto da zero', 'Aggiungerai i link a mano o dal pulsante della barra degli strumenti.']
+  ];
+  const list = h('div', { class: 'imp-opts', role: 'radiogroup', 'aria-label': 'Da dove cominci' },
+    opts.map(([v, t, hint]) => h('label', { class: 'imp-opt' },
+      h('input', { type: 'radio', name: 'start', value: v, checked: v === value, onchange: () => { value = v; } }),
+      h('span', {}, h('strong', {}, t), h('small', {}, hint)))));
+  const choice = await openModal({ title: 'Da dove vuoi cominciare?', ok: 'Continua', content: list, collect: () => value });
+  if (choice === 'chrome') await importFromChrome();
+  else if (choice === 'html') el.bookmarks.click();
+  else if (choice === 'backup') el.file.click();
 }
 
 /* ——— Importa, esporta, ripristina ——— */
-/* ——— Importazione: ogni cartella principale diventa una pagina, le sottocartelle diventano board ——— */
-// Raccoglie i link in gruppi { page, board, links }. `path` = cartelle sotto il contenitore (barra dei preferiti, altri preferiti…).
-function makeCollector() {
-  const groups = new Map();
-  return {
-    add(path, container, link) {
-      const page = path[0] || 'Importati';
-      const board = path.length <= 1 ? (path[0] || container || 'Senza cartella') : path.slice(1).join(' › ');
-      const key = `${page}\u0000${board}`;
-      if (!groups.has(key)) groups.set(key, { page, board, links: [] });
-      groups.get(key).links.push(link);
-    },
-    result: () => [...groups.values()]
-  };
-}
-
+/* Importazione guidata: i segnalibri diventano un piano (wizard.js), che si scrive solo alla conferma. */
 async function importFromChrome() {
   const granted = await chrome.permissions.request({ permissions: ['bookmarks'] });
   if (!granted) { toast('Serve il permesso di leggere i segnalibri.'); return; }
-  const tree = await chrome.bookmarks.getTree();
-  const col = makeCollector();
-  const walk = (node, path, container) => {
-    for (const c of node.children || []) {
-      if (c.url) {
-        if (/^https?:/i.test(c.url)) col.add(path, container, { title: c.title || hostOf(c.url), url: c.url });
-      } else walk(c, [...path, c.title || 'Senza nome'], container);
-    }
-  };
-  for (const top of tree[0].children || []) walk(top, [], top.title);
-  await importGroups(col.result());
+  await importItems(treeToItems(await chrome.bookmarks.getTree()));
 }
 
-/* File dei segnalibri in HTML (formato Netscape: lo esportano Chrome, Edge, Firefox e Safari). */
-function parseBookmarkHtml(text) {
-  const doc = new DOMParser().parseFromString(text, 'text/html');
-  const root = doc.querySelector('dl');
-  if (!root) return null;
-  const col = makeCollector();
-  // Nel DOM, ogni <DT> contiene o un link, o un titolo di cartella (H3) seguito dal suo <DL>.
-  const walk = (dl, path, container) => {
-    for (const dt of dl.children) {
-      if (dt.tagName !== 'DT') continue;
-      const kids = [...dt.children];
-      const h3 = kids.find((c) => c.tagName === 'H3');
-      if (h3) {
-        const sub = kids.find((c) => c.tagName === 'DL');
-        if (!sub) continue;
-        const title = (h3.textContent || '').trim() || 'Senza nome';
-        // Barra dei preferiti e "Altri preferiti" sono contenitori: non diventano pagine.
-        if (container === undefined && (h3.hasAttribute('personal_toolbar_folder') || h3.hasAttribute('unfiled_bookmarks_folder'))) walk(sub, [], title);
-        else walk(sub, [...path, title], container ?? '');
-        continue;
-      }
-      const a = kids.find((c) => c.tagName === 'A');
-      const href = a?.getAttribute('href') || '';
-      const url = /^https?:/i.test(href) ? safeUrl(href) : '';
-      if (url) col.add(path, container, { url, title: (a.textContent || '').trim() });
-    }
-  };
-  walk(root, [], undefined);
-  return col.result();
-}
 async function importBookmarkFile(file) {
   let text;
   try { text = await file.text(); } catch { toast('Non riesco a leggere il file.'); return; }
-  const groups = parseBookmarkHtml(text);
-  if (!groups) { toast('Il file non sembra un export di segnalibri (HTML).'); return; }
-  await importGroups(groups);
+  const items = htmlToItems(text);
+  if (!items) { toast('Il file non sembra un export di segnalibri (HTML).'); return; }
+  await importItems(items);
 }
 
-async function importGroups(groups) {
-  if (!groups.length) { toast('Nessun segnalibro da importare.'); return; }
-  const pageNames = [...new Set(groups.map((g) => g.page))];
-  const total = groups.reduce((a, g) => a + g.links.length, 0);
-  const choice = await askImportMode({ total, pages: pageNames.length, boards: groups.length, multi: state.workspaces.length >= 1 });
-  if (!choice) return;
-  await mergeImported(groups, choice);
+async function importItems(items) {
+  if (!items.length) { toast('Nessun segnalibro da importare.'); return; }
+  const res = await runWizard(items, { workspaceName: curWs().name });
+  if (!res) return;
+  await saveRules(res.learnedRules).catch(() => {});
+  await applyPlan(res.plan, res.target);
 }
 
-function askImportMode({ total, pages, boards }) {
-  const opts = [
-    ['pages', `Una pagina per ogni cartella principale`, `${pages} ${pages === 1 ? 'pagina' : 'pagine'}, le sottocartelle diventano board. Nel workspace «${curWs().name}».`],
-    ['newws', 'Come sopra, in un nuovo workspace «Importati»', 'Il tuo ordine attuale non viene toccato: poi sposti le pagine dove vuoi.'],
-    ['single', 'Tutto in una sola pagina «Importati»', `${boards} board in un’unica pagina.`]
-  ];
-  let value = pages > 6 ? 'newws' : 'pages';
-  const list = h('div', { class: 'imp-opts', role: 'radiogroup', 'aria-label': 'Dove importare' },
-    opts.map(([v, title, hint]) => h('label', { class: 'imp-opt' },
-      h('input', { type: 'radio', name: 'imp', value: v, checked: v === value, onchange: () => { value = v; } }),
-      h('span', {}, h('strong', {}, title), h('small', {}, hint)))));
-  return openModal({
-    title: `Importare ${total} link?`, ok: 'Importa',
-    content: list,
-    collect: () => value
-  });
-}
-
-async function mergeImported(groups, mode) {
+async function applyPlan(plan, target) {
   let ws = state.workspaces.find((w) => w.id === state.activeWorkspace);
-  if (mode === 'newws') {
+  if (target === 'new') {
     ws = state.workspaces.find((w) => w.name === 'Importati');
     if (!ws) { ws = { id: uid(), name: 'Importati', emoji: '📥' }; state.workspaces.push(ws); }
   }
   const pageList = () => state.pages.filter((p) => p.ws === ws.id);
-  const knownByPage = new Map();
+  const known = new Set(pageList().flatMap((p) => p.boards.flatMap((b) => b.links.map((l) => urlKey(l.url)))));
   let added = 0;
-  let firstPage = null;
   const touched = new Set();
-  for (const g of groups) {
-    const pageName = mode === 'single' ? 'Importati' : g.page;
-    const boardName = mode === 'single' && g.page !== 'Importati' && g.page !== g.board ? `${g.page} › ${g.board}` : g.board;
-    let page = pageList().find((p) => p.name === pageName.slice(0, 40));
-    if (!page) { page = { id: uid(), ws: ws.id, name: pageName.slice(0, 40), boards: [] }; state.pages.push(page); }
-    if (!knownByPage.has(page)) knownByPage.set(page, new Set(page.boards.flatMap((b) => b.links.map((l) => l.url))));
-    const known = knownByPage.get(page);
-    let board = page.boards.find((b) => b.name === boardName.slice(0, 60));
-    if (!board) {
-      board = { id: uid(), name: boardName.slice(0, 60), color: palette()[page.boards.length % palette().length], links: [] };
-      page.boards.push(board);
-    }
-    for (const l of g.links) {
-      if (known.has(l.url)) continue;
-      known.add(l.url);
-      board.links.push({ id: uid(), title: (l.title || hostOf(l.url)).slice(0, 200), url: l.url });
-      added++;
+  for (const g of plan.pages) {
+    const pageName = g.name.slice(0, 40);
+    let page = pageList().find((p) => p.name === pageName);
+    if (!page) { page = { id: uid(), ws: ws.id, name: pageName, boards: [] }; state.pages.push(page); }
+    for (const gb of g.boards) {
+      const boardName = gb.name.slice(0, 60);
+      let board = page.boards.find((b) => b.name === boardName);
+      if (!board) {
+        board = { id: uid(), name: boardName, color: palette()[page.boards.length % palette().length], links: [] };
+        page.boards.push(board);
+      }
+      for (const l of gb.links) {
+        const k = urlKey(l.url);
+        if (known.has(k)) continue;
+        known.add(k);
+        board.links.push({ id: uid(), title: (l.title || hostOf(l.url)).slice(0, 200), url: l.url });
+        added++;
+      }
     }
     touched.add(page);
-    firstPage ??= page;
   }
   for (const page of touched) page.boards = page.boards.filter((b) => b.links.length);
   // Pagine rimaste vuote (tutto già importato): niente schede vuote in più.
   state.pages = state.pages.filter((p) => !touched.has(p) || p.boards.length || state.pages.filter((x) => x.ws === p.ws).length === 1);
   if (!pageList().length) state.pages.push({ id: uid(), ws: ws.id, name: 'Principale', boards: [] });
   state.activeWorkspace = ws.id;
-  const target = pageList().find((p) => touched.has(p)) || pageList()[0];
-  state.activePage = target.id;
-  ws.lastPage = target.id;
+  const target_ = pageList().find((p) => touched.has(p) && state.pages.includes(p)) || pageList()[0];
+  state.activePage = target_.id;
+  ws.lastPage = target_.id;
   await commit();
   if (added) withUndo(`Importati ${added} link nuovi.`); else toast('Era già tutto importato.');
 }
@@ -627,10 +575,16 @@ async function restoreSnapshot(snap) {
   const ok = await askConfirm({ title: 'Ripristinare questa copia?', text: `Copia automatica del ${when} (${snap.n} link). I dati attuali verranno sostituiti.`, ok: 'Ripristina', danger: false });
   if (ok) await replaceState(snap.data, 'Copia ripristinata.');
 }
+async function forgetRules() {
+  const ok = await askConfirm({ title: 'Dimenticare le regole apprese?', text: 'Sono le scelte fatte durante lo smistamento dei segnalibri (sito → pagina). I tuoi link non cambiano.', ok: 'Dimentica', danger: false });
+  if (!ok) return;
+  await clearRules();
+  toast('Regole dimenticate.');
+}
 async function resetSettings() {
   const ok = await askConfirm({ title: 'Ripristinare le impostazioni?', text: 'Tema, sfondo e preferenze tornano come all’inizio. Link e board non cambiano.', ok: 'Ripristina', danger: false });
   if (!ok) return;
-  state.settings = defaultSettings();
+  state.settings = { ...defaultSettings(), name: state.settings.name, nameAsked: true };
   applyAll();
   await commit();
   settings.refresh();
@@ -1307,7 +1261,7 @@ const settings = mountSettings($('settings'), {
   pickPhoto,
   removePhoto,
   actions: {
-    importChrome: importFromChrome, importHtml: () => el.bookmarks.click(), exportBackup, restoreFile: () => el.file.click(), restoreSnapshot, resetSettings,
+    importChrome: importFromChrome, importHtml: () => el.bookmarks.click(), exportBackup, restoreFile: () => el.file.click(), restoreSnapshot, resetSettings, forgetRules,
     findDuplicates: () => { settings.close(); openDuplicates(toolCtx); },
     checkLinks: () => { settings.close(); openBroken(toolCtx); },
     resetUsage, setAutoHealth, folder: folderActions,

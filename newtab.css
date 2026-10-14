@@ -305,3 +305,32 @@ dialog.pal { width: min(640px, calc(100vw - 32px)); padding: 0; overflow: hidden
 .todo-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 4px 6px; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--muted); font-size: 13.5px; line-height: 1.4; }
 .todo-note button { flex: none; border: 0; background: none; color: var(--accent); font: 600 13.5px var(--body); }
 body.privacy .todo-title { filter: blur(7px); }
+
+/* Importazione guidata */
+.wiz-q { margin: 4px 0 -4px; font: 600 14px var(--body); color: var(--muted); }
+.wiz-tree { display: flex; flex-direction: column; gap: 12px; }
+.wiz-page { border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; background: color-mix(in srgb, var(--ground) 50%, transparent); }
+.wiz-page.off, .wiz-board.off { opacity: 0.45; }
+.wiz-row { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.wiz-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.wiz-name { flex: 1; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--text); font: 600 15px var(--body); }
+.wiz-name:hover, .wiz-name:focus { border-color: var(--line-strong); background: var(--ground); }
+.wiz-count { color: var(--muted); font-size: 12.5px; flex: none; }
+.wiz-board { margin: 2px 0 0 28px; border-top: 1px solid var(--line); }
+.wiz-board .wiz-name { font-weight: 500; }
+.wiz-move { height: 32px; max-width: 120px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--ground); color: var(--muted); font-size: 12.5px; }
+.wiz-toggle { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-size: 12.5px; }
+.wiz-toggle:hover { background: var(--hover); color: var(--text); }
+.wiz-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.wiz-links { list-style: none; margin: 0 0 8px; padding: 0 0 0 28px; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }
+.wiz-links label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding: 3px 0; }
+.wiz-links input { width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+.wiz-lt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wiz-links small { color: var(--muted); flex: none; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sort-card { display: flex; flex-direction: column; gap: 6px; padding: 18px; border: 1px solid var(--line-strong); border-radius: 18px; background: color-mix(in srgb, var(--ground) 55%, transparent); }
+.sort-title { font: 600 18px var(--body); overflow-wrap: anywhere; }
+.sort-host { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.sort-label { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 13.5px; color: var(--muted); }
+.sort-dest { height: 42px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--ground); color: var(--text); font-size: 15px; }
+.sort-keys { margin: 0; color: var(--muted); font-size: 12.5px; }
+.sort-keys kbd { margin: 0 2px; }

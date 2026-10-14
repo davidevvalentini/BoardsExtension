@@ -228,7 +228,7 @@ export function mountSettings(root, ctx) {
         `${new Date(sn.t).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} · ${sn.n} link`)));
     }).catch(() => {});
     return section('Dati',
-      h('p', { class: 'set-note' }, 'Il file HTML è quello esportato da Chrome, Edge, Firefox o Safari: le cartelle diventano board nella pagina «Importati».'),
+      h('p', { class: 'set-note' }, 'Il file HTML è quello esportato da Chrome, Edge, Firefox o Safari. Una procedura guidata ti fa scegliere come organizzare i link e ti mostra l’anteprima prima di importare.'),
       h('p', { class: 'set-note' }, `Ultimo backup esportato: ${last}. I dati sono solo su questo computer: esporta un backup ogni tanto.`),
       h('div', { class: 'btn-row wrap' },
         h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.importChrome() }, 'Importa i segnalibri di Chrome'),
@@ -243,7 +243,8 @@ export function mountSettings(root, ctx) {
       h('div', { class: 'btn-row wrap' },
         h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.checkLinks() }, 'Controlla i link rotti…'),
         h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.findDuplicates() }, 'Trova i link doppi…'),
-        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.resetUsage() }, 'Azzera i contatori di utilizzo')),
+        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.resetUsage() }, 'Azzera i contatori di utilizzo'),
+        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.forgetRules() }, 'Dimentica le regole apprese')),
       toggle('Controlla i link ogni settimana', S().healthCheck, async (v) => {
         const ok = await ctx.actions.setAutoHealth(v);
         if (!ok) render();

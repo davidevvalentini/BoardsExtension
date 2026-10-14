@@ -26,7 +26,7 @@ Workspace  (es. 🌤️ Personale, 💼 Lavoro)
 - **Board**: comprimi, blocca, ordina A–Z, "Apri tutte le pagine".
 - **Impostazioni** (finestra centrale): temi e colore di accento personalizzabili, colori delle board, orologio e saluto, icone, larghezza colonne.
 - **Sfondi**: tinta unita, sfumature, foto 4K da Wikimedia Commons (fisse o a rotazione), oppure una tua foto.
-- **Importazione**: dai segnalibri di Chrome o da un file HTML (Chrome, Edge, Firefox, Safari); una pagina per cartella principale, sottocartelle come board.
+- **Importazione guidata**: dai segnalibri di Chrome o da un file HTML (Chrome, Edge, Firefox, Safari). Scegli come organizzarli (segui le tue cartelle, un modello di pagine per argomento, oppure tutto in «Da smistare»), controlli l'anteprima ad albero (rinomini, sposti, togli la spunta) e, se vuoi, smisti i link incerti uno alla volta con la tastiera. Il classificatore è locale (dominio, parole del titolo, cartella d'origine) e impara dalle tue scelte; nulla viene scritto finché non premi «Importa», e `Ctrl+Z` annulla tutto. Al primo avvio ti chiede il nome e da dove vuoi cominciare.
 - **Board «To-do»** (facoltativa, menu ⋯ della pagina): mostra in sola lettura i to-do aperti del tuo Second Brain, ordinati per priorità, leggendoli dal suo server MCP (o da un'API JSON). Indirizzo e token si inseriscono in Impostazioni → To-do, restano sul computer e non finiscono nei backup; il permesso per contattare il server viene chiesto solo lì.
 - **Cerca e salta** con `Ctrl+K` (`⌘K`): workspace, pagine, board e link in un'unica ricerca; a campo vuoto mostra i link più usati. `/` porta alla ricerca nella pagina.
 - **Più usati**: un contatore locale delle aperture permette di ordinare una board «per più usati».
@@ -38,7 +38,7 @@ Workspace  (es. 🌤️ Personale, 💼 Lavoro)
 
 ## Installazione (modalità sviluppatore)
 
-1. Clona il repository o scarica lo ZIP.
+1. Scarica lo ZIP dell'ultima [release](../../releases/latest) (oppure clona il repository) e, se serve, decomprimilo.
 2. Apri `chrome://extensions` e attiva **Modalità sviluppatore**.
 3. **Carica estensione non pacchettizzata** e scegli la cartella del repository.
 
@@ -73,9 +73,16 @@ Le foto di sfondo sono caricate da `commons.wikimedia.org` solo se scegli uno sf
 | `palette.js` | ricerca e salto con `Ctrl+K` |
 | `todo.js` | board To-do: client MCP/JSON e normalizzazione |
 | `tools.js`, `health.js` | doppioni e controllo dei link rotti |
+| `importer.js`, `classify.js`, `learned.js`, `wizard.js` | importazione guidata: lettura dei segnalibri, classificatore locale, regole apprese, procedura a passi |
+| `tests/` | prove della logica pura (`node --test`) |
+| `scripts/build-zip.sh` | crea lo ZIP da allegare a una release |
 | `backupdir.js` | backup automatico in una cartella |
 | `popup.*` | popup di salvataggio rapido |
 | `background.js` | service worker: promemoria e controllo settimanale dei link |
+
+## Release
+
+Ogni versione ha un tag `vX.Y.Z` e una [release](../../releases) con lo ZIP pronto da caricare in `chrome://extensions`. Per pubblicarne una: aggiorna `version` nel `manifest.json`, esegui `scripts/build-zip.sh`, poi `git tag vX.Y.Z && git push --tags` e allega lo ZIP alla release.
 
 ## Crediti foto
 

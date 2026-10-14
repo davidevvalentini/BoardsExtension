@@ -17,7 +17,7 @@ Chi importa centinaia di segnalibri deve ottenere una struttura ordinata (pagine
 ## Flusso (procedura in 4 passi)
 1. **Origine**: file HTML o segnalibri di Chrome (come oggi). Si analizzano i link (dedup per `urlKey`).
 2. **Struttura di partenza** (scelta):
-   - *Segui le mie cartelle*: cartella di 1° livello → pagina, 2° livello → board, livelli più profondi uniti nella board padre, link sciolti → «Varie».
+   - *Segui le mie cartelle*: cartella di 1° livello → pagina, 2° livello → board, livelli più profondi uniti nella board padre, link sciolti classificati (sotto soglia → «Da smistare»).
    - *Modello*: pagine predefinite (Lavoro, Finanza, Casa, Viaggi, Svago, Risorse…), modificabili.
    - *Tutto in «Da smistare»*.
 3. **Assegnazione automatica + anteprima ad albero**: ogni link riceve una destinazione con punteggio di sicurezza. Sotto soglia → «Da smistare». Nell'anteprima si rinominano pagine/board, si spostano gruppi, si deselezionano link; board troppo lunghe (>25) vengono divise; doppioni segnalati/eliminati.
