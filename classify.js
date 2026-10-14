@@ -83,7 +83,7 @@ const fold = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-
 const tokens = (s) => fold(s).match(/[a-z0-9&]+/g) || [];
 const hit = (tok, word) => (word.length >= 6 ? tok.startsWith(word) : tok === word);
 
-function hostOf(url) {
+export function hostKey(url) {
   try { return new URL(url).hostname.toLowerCase().replace(/^(www|m|mobile)\./, ''); } catch { return ''; }
 }
 
@@ -116,7 +116,7 @@ const clip = (s) => String(s).slice(0, 60);
 
 export function classify(item, rules = []) {
   const url = String(item?.url ?? '');
-  const host = hostOf(url);
+  const host = hostKey(url);
 
   // 1) Regole apprese dalle tue scelte
   for (const r of rules) {
