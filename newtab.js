@@ -435,6 +435,17 @@ async function renameGreeting() {
   const name = await askText({ title: 'Il tuo nome', label: 'Nome nel saluto', value: state.settings.name || '', allowEmpty: true });
   if (name == null) return;
   state.settings.name = name;
+  state.settings.nameAsked = true;
+  await commit();
+  tickClock(true);
+}
+
+// Al primo avvio chiede il nome (una sola volta, anche se lo salti).
+async function askNameFirstTime() {
+  if (state.settings.nameAsked) return;
+  const name = await askText({ title: 'Come ti chiami?', label: 'Nome nel saluto (puoi lasciarlo vuoto)', value: '', ok: 'Continua', allowEmpty: true });
+  state.settings.nameAsked = true;
+  if (name) state.settings.name = name;
   await commit();
   tickClock(true);
 }
@@ -1421,6 +1432,7 @@ async function init() {
     if (now !== dueSig) { dueSig = now; if (!drag && !document.querySelector('dialog[open]')) renderGrid(); }
   }, 1000);
   snapshotIfDue(state).catch(() => {});
+  askNameFirstTime().catch(() => {});
   setTimeout(maybeNudgeBackup, 2500);
   folderOnStart().catch(() => {});
   initTodos().catch(() => {});

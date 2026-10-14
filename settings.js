@@ -155,7 +155,7 @@ export function mountSettings(root, ctx) {
       toggle('Mostra il saluto', s.clock.greeting, (v) => { s.clock.greeting = v; change('clock'); }),
       (() => {
         const input = h('input', { type: 'text', class: 'set-text', value: s.name, maxlength: 40, 'aria-label': 'Nome nel saluto', placeholder: 'Il tuo nome' });
-        input.addEventListener('input', () => { s.name = input.value.trim(); change('clock'); });
+        input.addEventListener('input', () => { s.name = input.value.trim(); s.nameAsked = true; change('clock'); });
         return row('Nome', input);
       })());
   }

@@ -17,7 +17,8 @@ export function defaultSettings() {
     bg: { type: 'image', color: '#0F1117', gradient: 'aurora', image: 'aurora-tasmania', rotate: 'off', quality: '4k', dim: 38, blur: 0 },
     glass: { opacity: 58, blur: 22 },
     clock: { h24: true, seconds: false, greeting: true },
-    name: 'Davide',
+    name: '',
+    nameAsked: false,
     openNew: false,
     icons: 'favicon',
     privacyBoards: true,
@@ -63,6 +64,8 @@ export function sanitizeSettings(raw) {
     glass: { opacity: num(g.opacity, d.glass.opacity, 30, 100), blur: num(g.blur, d.glass.blur, 0, 40) },
     clock: { h24: bool(k.h24, d.clock.h24), seconds: bool(k.seconds, d.clock.seconds), greeting: bool(k.greeting, d.clock.greeting) },
     name: str(r.name, d.name, 40),
+    // «Già chiesto»: chi ha un nome salvato da prima non viene interrogato di nuovo.
+    nameAsked: bool(r.nameAsked, typeof r.name === 'string' && r.name.trim() !== ''),
     openNew: bool(r.openNew, d.openNew),
     icons: oneOf(r.icons, ['favicon', 'letter'], d.icons),
     privacyBoards: bool(r.privacyBoards, d.privacyBoards),
