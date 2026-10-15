@@ -14,6 +14,7 @@ import * as folder from './backupdir.js';
 import * as todos from './todo.js';
 import { treeToItems, htmlToItems } from './importer.js';
 import { runWizard } from './wizard.js';
+import { INBOX } from './classify.js';
 import { saveRules, clearRules } from './learned.js';
 
 const $ = (id) => document.getElementById(id);
@@ -116,6 +117,8 @@ function setActivePage(id) {
   state.activePage = id;
   curWs().lastPage = id;
   el.tabs.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.page === id)));
+  scrollActiveTab();
+  requestAnimationFrame(updateTabsOverflow);
   renderGrid();
   persistSoon();
 }
@@ -537,7 +540,9 @@ async function applyPlan(plan, target) {
   state.activePage = target_.id;
   ws.lastPage = target_.id;
   await commit();
-  if (added) withUndo(`Importati ${added} link nuovi.`); else toast('Era già tutto importato.');
+  const inbox = pageList().find((p) => p.name === INBOX);
+  const waiting = inbox ? inbox.boards.reduce((a, b) => a + b.links.length, 0) : 0;
+  if (added) withUndo(`Importati ${added} link nuovi${waiting ? ` (${waiting} in «${INBOX}»)` : ''}.`); else toast('Era già tutto importato.');
 }
 
 function exportBackup() {
@@ -833,8 +838,20 @@ function boardToPageMenu(anchor, board) {
   openMenu(anchor, items);
 }
 
+// Porta la pagina attiva in vista, lasciando un po' di margine per la sfumatura ai lati.
+// `followActive` resta vero finché non scorri tu a mano: se la barra cambia larghezza, la pagina attiva resta in vista.
+let followActive = true;
 function scrollActiveTab() {
-  el.tabs.querySelector('.tab[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  followActive = true;
+  const t = el.tabs.querySelector('.tab[aria-pressed="true"]');
+  if (!t) return;
+  const a = t.getBoundingClientRect();
+  const l = el.tabs.getBoundingClientRect();
+  const pad = 48;
+  const toLeft = a.left - l.left - pad;
+  const toRight = a.right - l.right + pad;
+  if (toLeft < 0) el.tabs.scrollBy({ left: toLeft });
+  else if (toRight > 0) el.tabs.scrollBy({ left: toRight });
 }
 
 async function movePageTo(pageId, targetId, before) {
@@ -846,13 +863,44 @@ async function movePageTo(pageId, targetId, before) {
   await commit();
 }
 
+// Sulla pagina «Da smistare» compare il numero dei link ancora da sistemare.
+function inboxBadge(p) {
+  if (p.name !== INBOX) return null;
+  const n = p.boards.reduce((a, b) => a + b.links.length, 0);
+  return n ? h('span', { class: 'tab-badge', 'aria-label': `${n} da smistare` }, String(n)) : null;
+}
+
+// Frecce e sfumature ai lati della barra quando le pagine non entrano tutte.
+function updateTabsOverflow() {
+  const l = el.tabs;
+  const canL = l.scrollLeft > 2;
+  const canR = l.scrollLeft + l.clientWidth < l.scrollWidth - 2;
+  l.classList.toggle('can-left', canL);
+  l.classList.toggle('can-right', canR);
+  // Le frecce restano al loro posto finché le pagine non entrano tutte (così la barra non «salta»).
+  const over = l.scrollWidth > l.clientWidth + 2;
+  $('tabs-prev').hidden = !over;
+  $('tabs-next').hidden = !over;
+  $('tabs-all').hidden = !over;
+  $('tabs-prev').disabled = !canL;
+  $('tabs-next').disabled = !canR;
+}
+
+function pagesMenu(anchor) {
+  const pages = wsPages();
+  openMenu(anchor, pages.map((p) => {
+    const n = p.boards.reduce((a, b) => a + b.links.length, 0);
+    return { label: `${p.id === state.activePage ? '✓ ' : ''}${p.name} · ${n}`, run: () => setActivePage(p.id) };
+  }));
+}
+
 function renderTabs() {
   el.tabs.replaceChildren(...wsPages().map((p) => {
     const b = h('button', {
       class: 'tab', type: 'button', 'aria-pressed': String(p.id === state.activePage), title: p.name, dataset: { page: p.id },
       onclick: () => setActivePage(p.id),
       ondblclick: () => renamePage(p)
-    }, p.name);
+    }, p.name, inboxBadge(p));
     // Trascinare una scheda ne cambia l'ordine
     b.draggable = true;
     b.addEventListener('dragstart', (e) => {
@@ -939,6 +987,7 @@ function render() {
   renderWs();
   renderTabs();
   scrollActiveTab();
+  requestAnimationFrame(updateTabsOverflow);
   renderGrid();
   document.body.classList.toggle('privacy', !!state.privacy);
   document.body.classList.toggle('pb', !!state.settings.privacyBoards);
@@ -1319,11 +1368,26 @@ async function init() {
 
   $('add-page').addEventListener('click', addPage);
   $('page-menu').addEventListener('click', (e) => openMenu(e.currentTarget, [
+    ...(wsPages().length > 1 ? [{ label: 'Tutte le pagine…', run: () => pagesMenu($('page-menu')) }] : []),
     { label: 'Aggiungi una board To-do', run: addTodoBoard },
     { label: 'Rinomina pagina', run: () => renamePage(curPage()) },
     ...(state.workspaces.length > 1 ? [{ label: 'Sposta in un altro workspace…', run: () => pageToWsMenu($('page-menu'), curPage()) }] : []),
     { label: 'Elimina pagina', danger: true, run: () => deletePage(curPage()) }
   ]));
+  $('tabs-prev').append(icon('chevron', 18));
+  $('tabs-next').append(icon('chevron', 18));
+  $('tabs-all').append(icon('chevron', 20));
+  $('tabs-prev').addEventListener('click', () => el.tabs.scrollBy({ left: -Math.max(160, el.tabs.clientWidth * 0.7) }));
+  $('tabs-next').addEventListener('click', () => el.tabs.scrollBy({ left: Math.max(160, el.tabs.clientWidth * 0.7) }));
+  $('tabs-all').addEventListener('click', (e) => pagesMenu(e.currentTarget));
+  el.tabs.addEventListener('scroll', updateTabsOverflow, { passive: true });
+  new ResizeObserver(() => { updateTabsOverflow(); if (followActive) scrollActiveTab(); }).observe(el.tabs);
+  const manual = () => { followActive = false; };
+  el.tabs.addEventListener('pointerdown', manual);
+  el.tabs.addEventListener('wheel', manual, { passive: true });
+  $('tabs-prev').addEventListener('click', manual);
+  $('tabs-next').addEventListener('click', manual);
+  window.addEventListener('resize', updateTabsOverflow);
   el.tabs.addEventListener('wheel', (e) => {
     if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.tabs.scrollWidth > el.tabs.clientWidth) { el.tabs.scrollLeft += e.deltaY; e.preventDefault(); }
   }, { passive: false });

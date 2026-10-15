@@ -231,6 +231,17 @@ dialog.ws-dlg { width: min(560px, calc(100vw - 32px)); padding: 0; overflow: hid
 .top-left .tabs-list::-webkit-scrollbar { display: none; }
 .top-left .tab { flex: none; }
 .top-left .ws-btn { flex: none; }
+/* Frecce e sfumature: segnalano che ci sono altre pagine da scorrere */
+.tabs [hidden] { display: none; }
+.tabs-arrow { width: 36px; color: var(--text); }
+.tabs-arrow:disabled { opacity: 0.3; pointer-events: none; }
+#tabs-prev svg { transform: rotate(90deg); }
+#tabs-next svg { transform: rotate(-90deg); }
+.top-left .tabs-list.can-right { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+.top-left .tabs-list.can-left { mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+.top-left .tabs-list.can-left.can-right { mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+.tab-badge { margin-left: 8px; padding: 1px 8px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 600; }
+.tab[aria-pressed="true"] .tab-badge { background: var(--on-accent); color: var(--accent); }
 
 /* Riordino delle schede (pagine) */
 .tab.dragging { opacity: 0.4; }

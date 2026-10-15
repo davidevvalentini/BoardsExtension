@@ -21,7 +21,7 @@ Workspace  (es. 🌤️ Personale, 💼 Lavoro)
 
 ## Funzioni
 
-- **Workspace, pagine, board e link**, con trascinamento (link tra board e pagine, board tra pagine, pagine per cambiarne l’ordine).
+- **Workspace, pagine, board e link**, con trascinamento (link tra board e pagine, board tra pagine, pagine per cambiarne l’ordine). Se le pagine non entrano nella barra compaiono le frecce con la sfumatura e il pulsante «Tutte le pagine»; su «Da smistare» si vede quanti link restano da sistemare.
 - **Link**: evidenzia con un colore, fissa in alto, duplica, sposta, promemoria con notifica ("Ricordamelo").
 - **Board**: comprimi, blocca, ordina A–Z, "Apri tutte le pagine".
 - **Impostazioni** (finestra centrale): temi e colore di accento personalizzabili, colori delle board, orologio e saluto, icone, larghezza colonne.
