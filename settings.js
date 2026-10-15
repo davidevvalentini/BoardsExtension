@@ -165,6 +165,7 @@ export function mountSettings(root, ctx) {
     return section('Link e icone',
       toggle('Apri i link in una nuova scheda', s.openNew, (v) => { s.openNew = v; change('links'); }),
       row('Icone dei siti', segmented([['favicon', 'Favicon'], ['letter', 'Iniziali']], s.icons, (v) => { s.icons = v; change('links'); render(); }, 'Icone')),
+      row('Disposizione delle board', segmented([['rows', 'Righe allineate'], ['compact', 'Compatta']], s.layout.mode, (v) => { s.layout.mode = v; change('links'); render(); }, 'Disposizione delle board')),
       slider('Larghezza delle colonne', s.layout.colMin, 240, 420, ' px', (v) => { s.layout.colMin = v; change('theme'); }),
       toggle('Privacy: sfoca anche i nomi delle board', s.privacyBoards, (v) => { s.privacyBoards = v; change('links'); }));
   }

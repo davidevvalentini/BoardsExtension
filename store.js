@@ -22,7 +22,7 @@ export function defaultSettings() {
     openNew: false,
     icons: 'favicon',
     privacyBoards: true,
-    layout: { colMin: 290 },
+    layout: { colMin: 290, mode: 'rows' },
     healthCheck: false
   };
 }
@@ -69,7 +69,7 @@ export function sanitizeSettings(raw) {
     openNew: bool(r.openNew, d.openNew),
     icons: oneOf(r.icons, ['favicon', 'letter'], d.icons),
     privacyBoards: bool(r.privacyBoards, d.privacyBoards),
-    layout: { colMin: num(l.colMin, d.layout.colMin, 240, 420) },
+    layout: { colMin: num(l.colMin, d.layout.colMin, 240, 420), mode: oneOf(l.mode, ['rows', 'compact'], d.layout.mode) },
     healthCheck: bool(r.healthCheck, d.healthCheck)
   };
 }

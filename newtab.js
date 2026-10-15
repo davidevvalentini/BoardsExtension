@@ -454,7 +454,28 @@ async function askNameFirstTime() {
   if (name) state.settings.name = name;
   await commit();
   tickClock(true);
-  if (countLinks(state) === 0) await askStart();
+  if (countLinks(state) === 0) { await askLayout(); await askStart(); }
+}
+
+// Come disporre le board: righe allineate o compatta (colonne senza buchi).
+async function askLayout() {
+  let value = 'compact';
+  const prev = (mode) => mode === 'rows'
+    ? h('span', { class: 'lay-prev rows', 'aria-hidden': 'true' }, [0, 1, 2, 3, 4, 5].map(() => h('i')))
+    : h('span', { class: 'lay-prev compact', 'aria-hidden': 'true' }, [[14, 8], [8, 14], [12, 10]].map((hs) => h('b', {}, hs.map((x) => h('i', { style: `height:${x}px` })))));
+  const opts = [
+    ['compact', 'Compatta', 'Le board si dispongono in colonne, una sotto l’altra, senza spazi vuoti: più link in vista.'],
+    ['rows', 'Righe allineate', 'Le board stanno su righe ordinate; sotto le più corte resta dello spazio.']
+  ];
+  const list = h('div', { class: 'imp-opts', role: 'radiogroup', 'aria-label': 'Disposizione delle board' },
+    opts.map(([v, t, hint]) => h('label', { class: 'imp-opt' },
+      h('input', { type: 'radio', name: 'layout', value: v, checked: v === value, onchange: () => { value = v; } }),
+      prev(v), h('span', {}, h('strong', {}, t), h('small', {}, hint)))));
+  const choice = await openModal({ title: 'Come vuoi disporre le board?', text: 'Lo puoi cambiare quando vuoi in Impostazioni → Link e icone.', ok: 'Continua', content: list, collect: () => value });
+  if (!choice) return;
+  state.settings.layout.mode = choice;
+  await commit();
+  render();
 }
 
 // Subito dopo il nome: da dove vuoi cominciare? (così chi arriva qui per la prima volta sa dove andare)
@@ -651,7 +672,8 @@ el.grid.addEventListener('dragover', (e) => {
   const sec = e.target.closest?.('.board');
   if (sec && sec.dataset.id !== drag.boardId) {
     const r = sec.getBoundingClientRect();
-    const before = e.clientX < r.left + r.width / 2;
+    // Disposizione a righe: «prima/dopo» si decide da sinistra a destra; compatta: dall'alto in basso.
+    const before = state.settings.layout.mode === 'compact' ? e.clientY < r.top + r.height / 2 : e.clientX < r.left + r.width / 2;
     sec.dataset.drop = before ? 'before' : 'after';
     drag.target = { boardId: sec.dataset.id, before };
   } else if (!sec) {
@@ -958,6 +980,7 @@ function matches(link, q) {
 }
 
 function renderGrid() {
+  el.grid.classList.toggle('compact', state.settings.layout.mode === 'compact');
   const q = el.search.value.trim().toLowerCase();
   const nodes = [];
   if (q) {
