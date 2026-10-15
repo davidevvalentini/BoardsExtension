@@ -228,32 +228,37 @@ export function mountSettings(root, ctx) {
       [...snaps].reverse().forEach((sn) => snapBox.append(h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.restoreSnapshot(sn) },
         `${new Date(sn.t).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} · ${sn.n} link`)));
     }).catch(() => {});
+    const act = (label, fn, cls = 'btn-soft') => h('button', { type: 'button', class: cls, onclick: fn }, label);
+    const arow = (title, desc, ...buttons) => h('div', { class: 'act-row' },
+      h('div', { class: 'act-text' }, h('strong', {}, title), desc && h('small', {}, desc)),
+      h('div', { class: 'act-btns' }, ...buttons));
+    const group = (title, note, ...rows) => h('div', { class: 'act-group' },
+      h('h4', {}, title), note && h('p', { class: 'set-note' }, note), h('div', { class: 'act-card' }, ...rows));
     return section('Dati',
-      h('p', { class: 'set-note' }, 'Il file HTML è quello esportato da Chrome, Edge, Firefox o Safari. Una procedura guidata ti fa scegliere come organizzare i link e ti mostra l’anteprima prima di importare.'),
-      h('p', { class: 'set-note' }, `Ultimo backup esportato: ${last}. I dati sono solo su questo computer: esporta un backup ogni tanto.`),
-      h('div', { class: 'btn-row wrap' },
-        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.importChrome() }, 'Importa i segnalibri di Chrome'),
-        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.importHtml() }, 'Importa da file HTML…'),
-        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.exportBackup() }, 'Esporta backup'),
-        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.restoreFile() }, 'Ripristina da file…')),
+      group('Importa', 'Dal file HTML esportato da Chrome, Edge, Firefox o Safari. Una procedura guidata ti fa scegliere come organizzare i link e ti mostra l’anteprima prima di importare.',
+        arow('Segnalibri di Chrome', 'Legge direttamente quelli del browser', act('Importa', () => ctx.actions.importChrome())),
+        arow('File HTML', 'Esportato da qualsiasi browser', act('Scegli file…', () => ctx.actions.importHtml()))),
 
-      h('div', { class: 'set-label set-sub' }, h('span', {}, 'Backup automatico in una cartella')),
-      folderBlock(),
+      group('Backup', `Ultimo backup esportato: ${last}. I dati sono solo su questo computer: esporta un backup ogni tanto.`,
+        arow('Esporta un backup', 'Scarica un file con tutti i tuoi workspace', act('Esporta', () => ctx.actions.exportBackup())),
+        arow('Ripristina da file', 'Sostituisce i dati attuali (si può annullare)', act('Scegli file…', () => ctx.actions.restoreFile())),
+        h('div', { class: 'act-row act-stack' }, h('div', { class: 'act-text' }, h('strong', {}, 'Cartella di backup automatico')), folderBlock())),
 
-      h('div', { class: 'set-label set-sub' }, h('span', {}, 'Manutenzione')),
-      h('div', { class: 'btn-row wrap' },
-        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.checkLinks() }, 'Controlla i link rotti…'),
-        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.findDuplicates() }, 'Trova i link doppi…'),
-        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.resetUsage() }, 'Azzera i contatori di utilizzo'),
-        h('button', { type: 'button', class: 'btn-soft', onclick: () => ctx.actions.forgetRules() }, 'Dimentica le regole apprese')),
-      toggle('Controlla i link ogni settimana', S().healthCheck, async (v) => {
-        const ok = await ctx.actions.setAutoHealth(v);
-        if (!ok) render();
-      }, 'In background, con il permesso di accedere ai siti. Il risultato compare accanto ai link.'),
+      group('Copie automatiche', 'Una al giorno, conservate su questo computer. Toccane una per ripristinarla.',
+        h('div', { class: 'act-row act-stack' }, snapBox)),
 
-      h('div', { class: 'set-label set-sub' }, h('span', {}, 'Copie automatiche (una al giorno)')),
-      snapBox,
-      h('button', { type: 'button', class: 'link-btn danger', onclick: () => ctx.actions.resetSettings() }, 'Ripristina le impostazioni predefinite'));
+      group('Manutenzione', null,
+        arow('Link rotti', 'Verifica quali indirizzi non rispondono più', act('Controlla…', () => ctx.actions.checkLinks())),
+        arow('Link doppi', 'Trova i duplicati e scegli cosa tenere', act('Trova…', () => ctx.actions.findDuplicates())),
+        arow('Contatori di utilizzo', 'Riparte da zero l’ordinamento per più usati', act('Azzera', () => ctx.actions.resetUsage())),
+        arow('Regole apprese', 'Quelle imparate dallo smistamento dell’importazione', act('Dimentica', () => ctx.actions.forgetRules())),
+        toggle('Controlla i link ogni settimana', S().healthCheck, async (v) => {
+          const ok = await ctx.actions.setAutoHealth(v);
+          if (!ok) render();
+        }, 'In background, con il permesso di accedere ai siti. Il risultato compare accanto ai link.')),
+
+      group('Zona delicata', null,
+        arow('Impostazioni predefinite', 'Ripristina temi e preferenze; link e nome restano', act('Ripristina', () => ctx.actions.resetSettings(), 'btn-soft danger'))));
   }
 
   // Stato della cartella di backup: si riempie appena la lettura asincrona è pronta.
