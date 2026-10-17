@@ -66,7 +66,7 @@ body.plain .bg-shade { background: none; }
 .board-head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 10px; cursor: grab; }
 .board-head[draggable="false"] { cursor: default; }
 .dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent); }
-.board-head h2 { margin: 0; flex: 1; min-width: 0; font: 600 20px var(--display); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-head h2 { margin: 0; flex: 0 1 auto; min-width: 0; font: 600 20px var(--display); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-head .where { font-size: 12px; color: var(--muted); font-weight: 500; }
 .count { font-size: 13px; color: var(--muted); }
 .board-head .icon-btn { margin: -6px -6px -6px 0; }
@@ -364,3 +364,8 @@ body.privacy .todo-title { filter: blur(7px); }
 .imp-opt .lay-prev { margin-top: 2px; }
 .imp-opt .lay-prev { flex-direction: row; }
 .imp-opt .lay-prev.rows { flex-wrap: wrap; }
+
+.board-head .grow { flex: 1; min-width: 0; }
+.board-head .open-all { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-left: -4px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); opacity: 0.55; cursor: pointer; transition: opacity 0.12s, background 0.12s, color 0.12s; }
+.board-head:hover .open-all, .board-head .open-all:focus-visible { opacity: 1; }
+.board-head .open-all:hover { background: var(--hover); color: var(--text); }

@@ -805,6 +805,11 @@ function boardEl(page, board, links, searching) {
     }, icon('chevron', 18)),
     h('span', { class: 'dot', 'aria-hidden': 'true' }),
     h('h2', { title: board.name }, board.name),
+    !searching && board.links.length ? h('button', {
+      class: 'open-all', type: 'button', title: `Apri tutte le pagine (${board.links.length})`, 'aria-label': `Apri tutte le pagine di ${board.name}`,
+      onclick: (e) => { e.stopPropagation(); openAll(board); }
+    }, icon('external', 15)) : null,
+    h('span', { class: 'grow', 'aria-hidden': 'true' }),
     searching && page !== curPage() ? h('span', { class: 'where' }, state.workspaces.length > 1 ? `${state.workspaces.find((w) => w.id === page.ws)?.emoji || ''} ${page.name}` : page.name) : null,
     total ? h('span', { class: 'rem' + (dueN ? ' due' : ''), title: `${dueN} scaduti su ${total} promemoria` }, icon('bell', 15), `${dueN}/${total}`) : null,
     h('span', { class: 'count', title: `${links.length} link` }, total || board.locked ? String(links.length) : `${links.length} link`),
