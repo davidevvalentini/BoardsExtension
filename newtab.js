@@ -54,9 +54,10 @@ async function commit() {
     if (undoStack.length > 40) undoStack.shift();
     redoStack.length = 0;
   }
-  mark();
+  lastStruct = now;
+  lastJson = JSON.stringify(state);
+  render(); // prima l'interfaccia, poi il salvataggio: il rilascio non aspetta il disco
   await save(state);
-  render();
   scheduleFolderBackup();
 }
 function persistSoon() {
@@ -627,7 +628,9 @@ function recolor(i, next) {
 }
 
 /* ——— Trascinamento ——— */
+let markedBoard = null; // board attualmente evidenziata come destinazione (evita di toccare il DOM a ogni dragover)
 function clearMarks() {
+  markedBoard = null;
   document.querySelectorAll('.drop-line').forEach((n) => n.remove());
   document.querySelectorAll('[data-drop]').forEach((n) => n.removeAttribute('data-drop'));
   document.querySelectorAll('.drop-target').forEach((n) => n.classList.remove('drop-target'));
@@ -668,19 +671,23 @@ function wireSection(sec, list, board) {
 el.grid.addEventListener('dragover', (e) => {
   if (!drag || drag.type !== 'board') return;
   e.preventDefault();
-  document.querySelectorAll('[data-drop]').forEach((n) => n.removeAttribute('data-drop'));
-  const sec = e.target.closest?.('.board');
+  let sec = e.target.closest?.('.board');
+  let before = false;
   if (sec && sec.dataset.id !== drag.boardId) {
     const r = sec.getBoundingClientRect();
     // Disposizione a righe: «prima/dopo» si decide da sinistra a destra; compatta: dall'alto in basso.
-    const before = state.settings.layout.mode === 'compact' ? e.clientY < r.top + r.height / 2 : e.clientX < r.left + r.width / 2;
-    sec.dataset.drop = before ? 'before' : 'after';
-    drag.target = { boardId: sec.dataset.id, before };
+    before = state.settings.layout.mode === 'compact' ? e.clientY < r.top + r.height / 2 : e.clientX < r.left + r.width / 2;
   } else if (!sec) {
     const last = [...curPage().boards].reverse().find((b) => b.id !== drag.boardId);
-    const lastEl = last && el.grid.querySelector(`.board[data-id="${last.id}"]`);
-    if (lastEl) { lastEl.dataset.drop = 'after'; drag.target = { boardId: last.id, before: false }; }
-  }
+    sec = last && el.grid.querySelector(`.board[data-id="${last.id}"]`);
+  } else sec = null;
+  const mark = sec ? (before ? 'before' : 'after') : null;
+  if (sec === markedBoard?.sec && mark === markedBoard?.mark) return; // niente è cambiato: nessun lavoro per il browser
+  if (markedBoard) markedBoard.sec.removeAttribute('data-drop');
+  markedBoard = sec ? { sec, mark } : null;
+  if (!sec) return;
+  sec.dataset.drop = mark;
+  drag.target = { boardId: sec.dataset.id, before };
 });
 el.grid.addEventListener('drop', async (e) => {
   if (!drag || drag.type !== 'board' || !drag.target) return;
@@ -835,8 +842,11 @@ function boardEl(page, board, links, searching) {
       drag = { type: 'board', boardId: board.id, target: null };
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', board.name);
-      e.dataTransfer.setDragImage(sec, 24, 24);
-      setTimeout(() => sec.classList.add('dragging'));
+      // Anteprima leggera (solo testata) invece dell'intera board: con molti link rasterizzarla bloccava il trascinamento.
+      const ghost = h('div', { class: 'drag-ghost', style: `--c:${board.color}` }, h('span', { class: 'dot' }), board.name, h('small', {}, `${board.links.length} link`));
+      document.body.append(ghost);
+      e.dataTransfer.setDragImage(ghost, 20, 20);
+      setTimeout(() => { ghost.remove(); sec.classList.add('dragging'); });
     });
     head.addEventListener('dragend', () => { drag = null; sec.classList.remove('dragging'); clearMarks(); });
   }
@@ -996,7 +1006,7 @@ function renderGrid() {
       }
     }
     if (!nodes.length) nodes.push(h('div', { class: 'empty' }, h('div', {}, h('strong', {}, 'Nessun risultato'), `Nessun link corrisponde a «${el.search.value.trim()}».`)));
-    el.grid.replaceChildren(...nodes);
+    placeNodes(nodes, nodes[0].tagName === 'SECTION');
     return;
   }
   const page = curPage();
@@ -1008,7 +1018,49 @@ function renderGrid() {
     page.boards.forEach((b) => nodes.push(b.kind === 'todo' ? todoBoardEl(page, b) : boardEl(page, b, b.links, false)));
     nodes.push(h('button', { class: 'new-board', type: 'button', onclick: addBoard }, icon('plus', 20), 'Nuova board'));
   }
-  el.grid.replaceChildren(...nodes);
+  placeNodes(nodes, page.boards.length > 0);
+}
+
+/* Disposizione compatta: colonne vere (flex) invece delle colonne CSS. Con le colonne CSS ogni piccola modifica
+   (un marcatore di trascinamento, una classe) faceva rifare il calcolo di tutte le board, anche più di mezzo secondo. */
+const COL_GAP = 20;
+let colCount = 0;
+function columnCount() {
+  const w = el.grid.clientWidth;
+  return Math.max(1, Math.floor((w + COL_GAP) / (state.settings.layout.colMin + COL_GAP)));
+}
+// Divide in k gruppi contigui, tenendo bassa la colonna più alta (ricerca binaria sull'altezza massima).
+function partition(heights, k) {
+  const fits = (H) => {
+    let cols = 1, cur = -COL_GAP;
+    for (const h of heights) {
+      if (cur + COL_GAP + h > H && cur >= 0) { cols++; cur = h; } else cur += COL_GAP + h;
+    }
+    return cols <= k;
+  };
+  let lo = Math.max(...heights), hi = heights.reduce((a, b) => a + b + COL_GAP, 0);
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (fits(mid)) hi = mid; else lo = mid + 1; }
+  const groups = [[]];
+  let cur = -COL_GAP;
+  heights.forEach((h, i) => {
+    if (cur + COL_GAP + h > lo && cur >= 0) { groups.push([]); cur = h; } else cur += COL_GAP + h;
+    groups[groups.length - 1].push(i);
+  });
+  return groups;
+}
+function placeNodes(nodes, hasBoards) {
+  const compact = state.settings.layout.mode === 'compact' && hasBoards;
+  if (!compact || nodes.length < 2) { colCount = 0; el.grid.replaceChildren(...nodes); return; }
+  const k = columnCount();
+  colCount = k;
+  if (k === 1) { el.grid.replaceChildren(...nodes); return; }
+  // Misura le altezze in una colonna provvisoria della larghezza finale, poi distribuisce.
+  const colW = (el.grid.clientWidth - COL_GAP * (k - 1)) / k;
+  const probe = h('div', { class: 'gcol', style: `position:absolute;visibility:hidden;width:${colW}px` }, ...nodes);
+  el.grid.replaceChildren(probe);
+  const heights = nodes.map((n) => n.offsetHeight);
+  const groups = partition(heights, k);
+  el.grid.replaceChildren(...groups.map((g) => h('div', { class: 'gcol' }, ...g.map((i) => nodes[i]))));
 }
 
 function render() {
@@ -1416,6 +1468,11 @@ async function init() {
   $('tabs-prev').addEventListener('click', manual);
   $('tabs-next').addEventListener('click', manual);
   window.addEventListener('resize', updateTabsOverflow);
+  let colRaf = 0;
+  new ResizeObserver(() => {
+    cancelAnimationFrame(colRaf);
+    colRaf = requestAnimationFrame(() => { if (colCount && columnCount() !== colCount && !drag) renderGrid(); });
+  }).observe(el.grid);
   el.tabs.addEventListener('wheel', (e) => {
     if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.tabs.scrollWidth > el.tabs.clientWidth) { el.tabs.scrollLeft += e.deltaY; e.preventDefault(); }
   }, { passive: false });

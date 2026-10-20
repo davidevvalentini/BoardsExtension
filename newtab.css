@@ -50,10 +50,9 @@ body.plain .bg-shade { background: none; }
 
 /* ——— Board ——— */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--col-min), 1fr)); gap: 20px; align-items: start; }
-.grid.compact { display: block; column-width: var(--col-min); column-gap: 20px; }
-.grid.compact > * { break-inside: avoid; margin-bottom: 20px; }
-.grid.compact > .new-board { display: flex; }
-.grid.compact > .empty { column-span: all; }
+.grid.compact { display: flex; gap: 20px; align-items: flex-start; }
+.grid.compact > .gcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.grid.compact > .empty { flex: 1; }
 .board { --c: #7CC4FF; position: relative; min-width: 0; background: var(--panel); border: 1px solid var(--edge); border-radius: 24px; padding: 12px 12px 8px; display: flex; flex-direction: column; gap: 4px; backdrop-filter: blur(var(--glass-blur)) saturate(1.3); box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent) inset, 0 18px 40px -24px rgba(0, 0, 0, 0.5); }
 .board.dragging { opacity: 0.35; }
 .board[data-drop]::before { content: ''; position: absolute; top: 0; bottom: 0; width: 3px; border-radius: 3px; background: var(--accent); }
@@ -369,3 +368,8 @@ body.privacy .todo-title { filter: blur(7px); }
 .board-head .open-all { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-left: -4px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); opacity: 0.55; cursor: pointer; transition: opacity 0.12s, background 0.12s, color 0.12s; }
 .board-head:hover .open-all, .board-head .open-all:focus-visible { opacity: 1; }
 .board-head .open-all:hover { background: var(--hover); color: var(--text); }
+
+/* Durante il trascinamento di una board niente sfocatura dello sfondo: è la parte più costosa da ridisegnare. */
+.drag-ghost { position: fixed; top: -200px; left: -200px; display: flex; align-items: center; gap: 10px; padding: 12px 16px; min-width: 200px; border-radius: 16px; border: 1px solid var(--edge); background: var(--menu-bg, #202226); color: var(--text); font: 600 17px var(--display); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+.drag-ghost .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+.drag-ghost small { margin-left: auto; font: 500 12px var(--body); color: var(--muted); }
